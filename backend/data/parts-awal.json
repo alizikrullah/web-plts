@@ -1,0 +1,38 @@
+[
+  {
+    "category": "panel",
+    "name": "SOLANA SOLAR PANEL MONOCRYSTALLINE 24V 550WP",
+    "unit": "unit",
+    "unit_price": 3265000,
+    "wp": 550,
+    "voc": 50.1,
+    "vmp": 42.1,
+    "notes": "Harga dari sheet Daftar Barang Solar Panel. Voc dan Vmp dari simulator HTML lama."
+  },
+  {
+    "category": "inverter",
+    "name": "Samoto ILS3800 Hybrid Solar Inverter Pure Sine Wave Low Frequency 3000W MPPT Sistem Battery 24V",
+    "unit": "unit",
+    "unit_price": 6741800,
+    "system_type": "hybrid_offgrid",
+    "rated_w": 3000,
+    "pv_max_w": 2700,
+    "pv_voc_max": 245,
+    "mppt_v_min": 30,
+    "mppt_v_max": 170,
+    "efficiency_pct": 92,
+    "battery_system_v": 24,
+    "notes": "Harga dari sheet, perlu dicek tim apakah sudah harga satuan (PRD 11.2 aturan 6). Angka teknis dari simulator HTML lama."
+  },
+  {
+    "category": "baterai",
+    "name": "Baterai LiFePO4 24V 100Ah New 3500-5000 Cycle untuk PLTS UPS Solar Panel - Smart Gen 4",
+    "unit": "unit",
+    "unit_price": 6662100,
+    "battery_system_v": 24,
+    "capacity_ah": 100,
+    "voltage_v": 25.6,
+    "dod_pct": 90,
+    "notes": "Harga dari sheet, perlu dicek tim apakah sudah harga satuan (PRD 11.2 aturan 6). Angka teknis dari simulator HTML lama. Saran dari simulator lama: set tipe baterai USER di inverter, tegangan boost 28,4 V, float 27,0 V, putus 22,4 V untuk LiFePO4 8S, dan cek tegangan per sel di aplikasi BMS."
+  }
+]

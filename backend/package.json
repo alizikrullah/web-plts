@@ -1,0 +1,31 @@
+{
+  "name": "plts-web-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "migrate": "tsx src/core/migrate.ts",
+    "test": "vitest run --no-file-parallelism",
+    "directus:setup": "tsx src/scripts/directus-setup.ts",
+    "seed:admin": "tsx src/scripts/seed-admin.ts",
+    "import:parts": "tsx src/scripts/import-parts.ts",
+    "seed": "tsx src/scripts/seed-awal.ts",
+    "seed:contoh": "tsx src/scripts/seed-contoh.ts"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "5.5.207",
+    "pg": "^8.23.1",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.19.43",
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.12"
+  }
+}
