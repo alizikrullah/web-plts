@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { one, pool } from "../../core/db.js"
 import { flow, PNG } from "../../test/flow.js"
 import { seedTestData, type PartKey } from "../../test/test-data.js"
-import { client, freshTestDb, startApp, userSession, type Session } from "../../test/test-db.js"
+import { client, freshTestDb, pdfText, startApp, userSession, type Session } from "../../test/test-db.js"
 
 let app: Awaited<ReturnType<typeof startApp>>, call: ReturnType<typeof client>, admin: Session, ids: Record<PartKey, string>, f: ReturnType<typeof flow>
 let pdfBuf: Buffer
@@ -162,6 +162,30 @@ describe("B7 skenario uji", () => {
     // biaya yang ditanggung kami cukup dicatat tanpa tagihan
     const kami = await adjust(project.id, { amount: 300000, borne_by: "kami" })
     expect((await call("POST", `/api/admin/projects/${project.id}/invoices/tambahan`, { as: admin, body: { cost_adjustment_ids: [kami.id] } })).json.code).toBe("BORNE_BY_US")
+  })
+
+  it("pratinjau tagihan tambahan: syaratnya sama dengan terbit, biaya non-part jadi Biaya Jasa, dan tidak menyimpan apa pun", async () => {
+    const { project } = await project23()
+    const part = await adjust(project.id, { amount: 400000, borne_by: "client", explanation: "Kabel tambahan" })
+    const stay = await adjust(project.id, { amount: 250000, borne_by: "client", category: "akomodasi", explanation: "Menginap satu malam" })
+    const preview = (ids: string[]) => call("GET", `/api/admin/projects/${project.id}/invoices/tambahan/preview?ids=${ids.join(",")}`, { as: admin })
+    expect((await preview([part.id])).json.code).toBe("NO_APPROVAL")
+    expect((await preview([])).json.code).toBe("INVALID_INPUT")
+    for (const x of [part, stay]) {
+      const proof = await f.upload(project.id, "bukti_setuju")
+      await ok(call("PATCH", `/api/admin/cost-adjustments/${x.id}`, { as: admin, body: { client_approved_at: today(), proof_file_id: proof.id } }))
+    }
+    const r = await preview([part.id, stay.id])
+    expect(r.status).toBe(200)
+    const text = await pdfText(r.buf!)
+    expect(text).toContain("PRATINJAU")
+    expect(text).toContain("Tagihan tambahan")
+    expect(text).toContain("Kabel tambahan (kenaikan harga)")
+    expect(text).toContain("Biaya Jasa Rp250.000")
+    expect(text).not.toContain("Menginap")
+    expect(text).toContain("TOTAL TAGIHAN Rp650.000")
+    expect((await one(pool, "select count(*)::int n from cost_adjustments where id = any($1) and invoice_id is not null", [[part.id, stay.id]])).n).toBe(0)
+    expect((await one(pool, "select count(*)::int n from invoices where project_id = $1 and type = 'tambahan'", [project.id])).n).toBe(0)
   })
 
   it("skenario 13: proyek ditandai Selesai saat masih ada kekurangan, pengembalian belum dicatat, atau tagihan belum lunas ditolak dengan alasannya", async () => {

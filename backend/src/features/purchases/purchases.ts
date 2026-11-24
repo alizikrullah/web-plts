@@ -2,7 +2,7 @@ import { Router } from "express"
 import { all, one, pool, tx, type Db } from "../../core/db.js"
 import { fail, param, v } from "../../core/http.js"
 import { readInvoice, type Extraction } from "./invoice-reader.js"
-import { issueInvoice } from "../invoices/invoices.js"
+import { issueInvoice, previewPdf, sendPdf } from "../invoices/invoices.js"
 import { mergePdf } from "../../core/pdf.js"
 import { projectFor, recap } from "../projects/projects-core.js"
 import { getFile } from "../../core/storage.js"
@@ -198,23 +198,34 @@ router.patch("/admin/cost-adjustments/:id", async (req, res) => {
 })
 
 // Tagihan tambahan hanya untuk biaya tanggungan client yang bukti setujunya sudah terisi (PRD 8.3 aturan 2, aturan 18.9).
+// Syaratnya sama untuk pratinjau dan terbit.
+const REASON: Record<string, string> = { kesalahan_kami: "kesalahan kami", kondisi_lokasi: "kondisi lokasi", kenaikan_harga: "kenaikan harga", lainnya: "lainnya" }
+async function extraSource(c: Db, req: any, raw: unknown, lock: boolean) {
+  const p = await projectFor(c, req, param(req, "id"), lock)
+  if (!Array.isArray(raw) || !raw.length) fail(400, "Pilih Biaya Tambahan yang akan ditagihkan", "INVALID_INPUT")
+  const ids = [...new Set((raw as unknown[]).map(id => v.uuid({ cost_adjustment_ids: id }, "cost_adjustment_ids")))]
+  const rows = await all(c, `select * from cost_adjustments where id = any($1) and project_id = $2 ${lock ? "for update" : ""}`, [ids, p.id])
+  if (rows.length !== ids.length) fail(404, "Biaya Tambahan tidak ditemukan", "NOT_FOUND")
+  for (const x of rows) {
+    if (x.borne_by !== "client") fail(400, "Biaya yang ditanggung kami cukup dicatat, tanpa tagihan", "BORNE_BY_US")
+    if (!x.client_approved_at || !x.proof_file_id) fail(400, "Bukti setuju client (tanggal dan file) wajib ada sebelum tagihan tambahan dibuat", "NO_APPROVAL")
+    if (x.invoice_id) fail(409, "Biaya Tambahan ini sudah ditagihkan", "INVOICED")
+  }
+  return { ids, source: { project: p, type: "tambahan" as const, priceValidUntil: null,
+    items: rows.map(x => ({ type: x.category, description: `${x.explanation} (${REASON[x.reason]})`.slice(0, 255), unit: null, qty: 1, days: null, unit_price: x.amount, subtotal: x.amount })) } }
+}
+
+// Pratinjau tagihan tambahan: ?ids=<id Biaya Tambahan dipisah koma>. Tidak menyimpan apa pun.
+router.get("/admin/projects/:id/invoices/tambahan/preview", async (req, res) => {
+  const ids = typeof req.query.ids === "string" ? req.query.ids.split(",").filter(Boolean) : []
+  sendPdf(res, await tx(async c => previewPdf(c, (await extraSource(c, req, ids, false)).source)))
+})
+
 router.post("/admin/projects/:id/invoices/tambahan", async (req, res) => {
   const b = req.body ?? {}
   const invoice = await tx(async c => {
-    const p = await projectFor(c, req, param(req, "id"), true)
-    const raw = b.cost_adjustment_ids
-    if (!Array.isArray(raw) || !raw.length) fail(400, "Pilih Biaya Tambahan yang akan ditagihkan", "INVALID_INPUT")
-    const ids = [...new Set((raw as unknown[]).map(id => v.uuid({ cost_adjustment_ids: id }, "cost_adjustment_ids")))]
-    const rows = await all(c, "select * from cost_adjustments where id = any($1) and project_id = $2 for update", [ids, p.id])
-    if (rows.length !== ids.length) fail(404, "Biaya Tambahan tidak ditemukan", "NOT_FOUND")
-    for (const x of rows) {
-      if (x.borne_by !== "client") fail(400, "Biaya yang ditanggung kami cukup dicatat, tanpa tagihan", "BORNE_BY_US")
-      if (!x.client_approved_at || !x.proof_file_id) fail(400, "Bukti setuju client (tanggal dan file) wajib ada sebelum tagihan tambahan dibuat", "NO_APPROVAL")
-      if (x.invoice_id) fail(409, "Biaya Tambahan ini sudah ditagihkan", "INVOICED")
-    }
-    const LABEL: Record<string, string> = { kesalahan_kami: "kesalahan kami", kondisi_lokasi: "kondisi lokasi", kenaikan_harga: "kenaikan harga", lainnya: "lainnya" }
-    const inv = await issueInvoice(c, { project: p, type: "tambahan", planningId: null, priceValidUntil: null, userId: req.user!.sub, notes: v.optText(b, "notes"),
-      items: rows.map(x => ({ type: x.category, description: `${x.explanation} (${LABEL[x.reason]})`.slice(0, 255), unit: null, qty: 1, days: null, unit_price: x.amount, subtotal: x.amount })) })
+    const { ids, source } = await extraSource(c, req, b.cost_adjustment_ids, true)
+    const inv = await issueInvoice(c, { ...source, planningId: null, userId: req.user!.sub, notes: v.optText(b, "notes") })
     await c.query("update cost_adjustments set invoice_id = $2 where id = any($1)", [ids, inv.id])
     return inv
   })

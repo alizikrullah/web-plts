@@ -58,7 +58,8 @@ test("skenario 12: tagihan tambahan tanpa bukti setuju client ditolak, setelah b
   await expect(page.getByText("Belum ada bukti setuju.")).toBeVisible()
 
   await page.getByRole("checkbox").check()
-  await page.getByRole("button", { name: "Buat tagihan tambahan" }).click()
+  await expect(page.getByRole("button", { name: "Buat tagihan tambahan" })).toBeDisabled()
+  await page.getByRole("button", { name: "Pratinjau tagihan tambahan" }).click()
   await expect(page.getByRole("alert")).toHaveText("Bukti setuju client (tanggal dan file) wajib ada sebelum tagihan tambahan dibuat")
 
   await page.getByRole("button", { name: "Isi bukti setuju" }).click()
@@ -66,6 +67,10 @@ test("skenario 12: tagihan tambahan tanpa bukti setuju client ditolak, setelah b
   await page.getByRole("button", { name: "Simpan bukti" }).click()
   await expect(page.getByText(/Disetujui \d+/)).toBeVisible()
   await page.getByRole("checkbox").check()
+  const preview = page.waitForEvent("popup")
+  await page.getByRole("button", { name: "Pratinjau tagihan tambahan" }).click()
+  await expect.poll(async () => (await preview).url()).toMatch(/^blob:/)
+  await (await preview).close()
   await page.getByRole("button", { name: "Buat tagihan tambahan" }).click()
   await expect(page.getByText("Tagihan tambahan terbit.")).toBeVisible()
   await page.getByRole("button", { name: "Penagihan" }).click()

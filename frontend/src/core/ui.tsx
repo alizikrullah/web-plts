@@ -1,16 +1,25 @@
 import { useId, useState, type InputHTMLAttributes } from "react"
+import { LuEye, LuEyeOff } from "react-icons/lu"
 import { Link } from "react-router"
 
 export function Loading() {
   return <p className="loading" role="status">Memuat...</p>
 }
 
-export function Field({ label, hint, ...input }: { label: string; hint?: string } & InputHTMLAttributes<HTMLInputElement>) {
-  const id = useId()
+// Kolom isian. Kolom password punya tombol mata untuk menampilkan atau menyembunyikan isinya.
+export function Field({ label, hint, type, ...input }: { label: string; hint?: string } & InputHTMLAttributes<HTMLInputElement>) {
+  const id = useId(), [show, setShow] = useState(false), password = type === "password"
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <div className="box"><input id={id} {...input} /></div>
+      <div className="box">
+        <input id={id} type={password && show ? "text" : type} {...input} />
+        {password && (
+          <button type="button" className="eye" aria-label={show ? "Sembunyikan password" : "Tampilkan password"} aria-pressed={show} onClick={() => setShow(s => !s)}>
+            {show ? <LuEyeOff aria-hidden /> : <LuEye aria-hidden />}
+          </button>
+        )}
+      </div>
       {hint && <p className="hint">{hint}</p>}
     </div>
   )

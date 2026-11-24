@@ -5,7 +5,7 @@ import { useSession } from "../../core/session"
 import { Field, Loading, Message, useAction } from "../../core/ui"
 import { useApi } from "../../core/useApi"
 
-interface User { id: string; name: string; email: string; whatsapp: string; role: string; is_active: boolean; must_change_password: boolean }
+interface User { id: string; name: string; email: string; whatsapp: string; role: string; is_active: boolean; is_verified: boolean; must_change_password: boolean }
 const ROLE: Record<string, string> = { guest: "Guest", client: "Client", admin: "Admin" }
 
 // Kelola Akun di dalam Pengaturan (PRD bagian 4): cari, nonaktifkan atau aktifkan lagi, buat akun admin, dan password sementara.
@@ -45,7 +45,7 @@ export default function ManageAccounts() {
             <thead><tr><th>Nama</th><th>Email</th><th>WhatsApp</th><th>Role</th><th>Status</th><th /></tr></thead>
             <tbody>{d.data.users.map(u => (
               <tr key={u.id} className={u.is_active ? "" : "off"}>
-                <td>{u.name}{u.must_change_password && <small>Masih password sementara</small>}</td>
+                <td>{u.name}{u.must_change_password && <small>Masih password sementara</small>}{!u.is_verified && <small>Email belum diverifikasi</small>}</td>
                 <td>{u.email}</td><td>{u.whatsapp}</td><td>{ROLE[u.role]}</td><td>{u.is_active ? "Aktif" : "Nonaktif"}</td>
                 <td className="row-actions">
                   {u.id !== me && <button type="button" className={u.is_active ? "btn sm danger" : "btn sm"} disabled={act.busy} onClick={() => toggle(u)}>{u.is_active ? "Nonaktifkan" : "Aktifkan"}</button>}

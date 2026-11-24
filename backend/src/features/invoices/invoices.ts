@@ -9,22 +9,36 @@ import { addDaysWib, moveTo, nextNumber, projectFor, statusKeyOf } from "../proj
 import { getSettings, required } from "../settings/settings.js"
 
 // B6: tagihan dengan PDF, pembayaran, dan perpindahan status otomatis (PRD bagian 8).
-// Tagihan langsung terbit dengan satu tombol; status draf tidak dipakai (keputusan sementara, lihat laporan).
+// Sebelum terbit, admin membuka pratinjau PDF yang persis sama dengan yang diterima client. Pratinjau tidak menyimpan apa pun;
+// kalau ada yang salah, Planning dikembalikan ke draf dan diubah di sana (keputusan tim 24 Nov 2026). Status draf tagihan tidak dipakai.
 export const router = Router()
 
-interface Line { type: string; description: string; unit: string | null; qty: number; days: number | null; unit_price: number; subtotal: number }
+export interface Line { type: string; description: string; unit: string | null; qty: number; days: number | null; unit_price: number; subtotal: number }
+type Source = { project: any; type: "awal" | "tambahan"; priceValidUntil: string | null; items: Line[] }
 const sumOf = (items: Line[], type: string) => items.filter(i => i.type === type).reduce((s, i) => s + i.subtotal, 0)
 
-// Menerbitkan tagihan: nomor, salinan baris biaya (aturan 18.4), PDF, dan file tagihan.
-export async function issueInvoice(c: Db, o: { project: any; type: "awal" | "tambahan"; planningId: string | null; priceValidUntil: string | null; items: Line[]; userId: string; notes: string | null }) {
+// Angka dan isi tagihan, dipakai bersama oleh pratinjau dan terbit supaya keduanya pasti sama.
+async function invoiceContent(c: Db, o: Source) {
   const s = await getSettings(c)
   // Nama usaha boleh kosong (tim belum punya nama usaha); cara pembayaran wajib karena client harus tahu cara membayar.
   const business = (s.business_name as string | null) ?? null, payment = required<string>(s, "payment_instructions", "Cara pembayaran")
   const amounts = { parts: sumOf(o.items, "part"), labor: sumOf(o.items, "sdm"), services: sumOf(o.items, "jasa"), accommodation: sumOf(o.items, "akomodasi") }
   const total = amounts.parts + amounts.labor + amounts.services + amounts.accommodation
   if (!(total > 0)) fail(400, "Tagihan tidak boleh nol", "INVALID_INPUT")
-  const number = await nextNumber(c, "invoices", "number", "INV")
   const dueDate = await addDaysWib(c, s.invoice_due_days)
+  const client = (await one(c, "select name, whatsapp from users where id = $1", [o.project.client_id]))!
+  const pdf = (number: string, issuedAt: Date, preview = false) => invoicePdf({ business_name: business, payment_instructions: payment, number, type: o.type,
+    issued_at: issuedAt, due_date: dueDate, price_valid_until: o.priceValidUntil, client: { ...client, address: o.project.address, city: o.project.city },
+    project: { code: o.project.code, name: o.project.name }, items: o.items, totals: { ...amounts, total }, preview })
+  return { amounts, total, dueDate, pdf }
+}
+
+export const previewPdf = async (c: Db, o: Source) => (await invoiceContent(c, o)).pdf("", new Date(), true)
+
+// Menerbitkan tagihan: nomor, salinan baris biaya (aturan 18.4), PDF, dan file tagihan.
+export async function issueInvoice(c: Db, o: Source & { planningId: string | null; userId: string; notes: string | null }) {
+  const { amounts, total, dueDate, pdf } = await invoiceContent(c, o)
+  const number = await nextNumber(c, "invoices", "number", "INV")
   const inv = (await one(c, `insert into invoices (project_id, planning_id, type, number, status, issued_at, due_date, price_valid_until,
       amount_parts, amount_labor, amount_services, amount_accommodation, total, notes, created_by)
     values ($1, $2, $3, $4, 'terbit', now(), $5, $6, $7, $8, $9, $10, $11, $12, $13) returning *`,
@@ -32,25 +46,33 @@ export async function issueInvoice(c: Db, o: { project: any; type: "awal" | "tam
   for (const [i, it] of o.items.entries())
     await c.query(`insert into invoice_items (invoice_id, type, description, unit, qty, days, unit_price, subtotal, sort_order)
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [inv.id, it.type, it.description, it.unit, it.qty, it.days, it.unit_price, it.subtotal, i + 1])
-  const client = (await one(c, "select name, whatsapp from users where id = $1", [o.project.client_id]))!
-  const buf = await invoicePdf({ business_name: business, payment_instructions: payment, number, type: o.type, issued_at: inv.issued_at,
-    due_date: dueDate, price_valid_until: o.priceValidUntil, client: { ...client, address: o.project.address, city: o.project.city },
-    project: { code: o.project.code, name: o.project.name }, items: o.items, totals: { ...amounts, total } })
+  const buf = await pdf(number, inv.issued_at)
   const file = (await saveFile(c, { buf, name: `${number}.pdf`, mime: "application/pdf", projectId: o.project.id, purpose: "tagihan_pdf", userId: o.userId }))!
   return (await one(c, "update invoices set pdf_file_id = $2 where id = $1 returning *", [inv.id, file.id]))!
 }
 
-// Tagihan awal dari Planning final dengan satu tombol. Status proyek pindah ke Menunggu Pembayaran (PRD 8.1).
+export const sendPdf = (res: any, buf: Buffer) => res.type("application/pdf").setHeader("Content-Disposition", 'inline; filename="pratinjau-tagihan.pdf"').send(buf)
+
+// Syarat tagihan awal, sama untuk pratinjau dan terbit.
+async function initialSource(c: Db, req: any, lock: boolean) {
+  const p = await projectFor(c, req, param(req, "id"), lock)
+  if ((await statusKeyOf(c, p)) !== "planning") fail(409, "Tagihan awal hanya bisa dibuat saat proyek berstatus Planning", "INVALID_STATUS")
+  const pl = await planningOf(c, p.id, lock)
+  if (pl.status !== "final") fail(409, "Tagihan hanya bisa dibuat dari Planning final", "PLANNING_DRAFT")
+  if (await one(c, "select 1 from invoices where project_id = $1 and type = 'awal' and status <> 'batal'", [p.id]))
+    fail(409, "Proyek ini sudah punya tagihan awal", "INVOICE_EXISTS")
+  return { p, pl, source: { project: p, type: "awal" as const, priceValidUntil: pl.price_valid_until, items: await planningItems(c, pl.id) } }
+}
+
+router.get("/admin/projects/:id/invoices/preview", async (req, res) => {
+  sendPdf(res, await tx(async c => previewPdf(c, (await initialSource(c, req, false)).source)))
+})
+
+// Tagihan awal dari Planning final. Status proyek pindah ke Menunggu Pembayaran (PRD 8.1).
 router.post("/admin/projects/:id/invoices", async (req, res) => {
   const invoice = await tx(async c => {
-    const p = await projectFor(c, req, param(req, "id"), true)
-    if ((await statusKeyOf(c, p)) !== "planning") fail(409, "Tagihan awal hanya bisa dibuat saat proyek berstatus Planning", "INVALID_STATUS")
-    const pl = await planningOf(c, p.id, true)
-    if (pl.status !== "final") fail(409, "Tagihan hanya bisa dibuat dari Planning final", "PLANNING_DRAFT")
-    if (await one(c, "select 1 from invoices where project_id = $1 and type = 'awal' and status <> 'batal'", [p.id]))
-      fail(409, "Proyek ini sudah punya tagihan awal", "INVOICE_EXISTS")
-    const inv = await issueInvoice(c, { project: p, type: "awal", planningId: pl.id, priceValidUntil: pl.price_valid_until,
-      items: await planningItems(c, pl.id), userId: req.user!.sub, notes: v.optText(req.body ?? {}, "notes") })
+    const { p, pl, source } = await initialSource(c, req, true)
+    const inv = await issueInvoice(c, { ...source, planningId: pl.id, userId: req.user!.sub, notes: v.optText(req.body ?? {}, "notes") })
     await moveTo(c, p.id, "menunggu_pembayaran", `Tagihan ${inv.number} terbit`, req.user!.sub)
     return inv
   })

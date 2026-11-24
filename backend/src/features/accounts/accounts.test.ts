@@ -1,7 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { one, pool } from "../../core/db.js"
 import { client, freshTestDb, startApp, userSession } from "../../test/test-db.js"
 import { ACCESS_TTL_SEC, verifyToken } from "../../core/tokens.js"
+import { outbox } from "../../core/email.js"
 
 let app: Awaited<ReturnType<typeof startApp>>, call: ReturnType<typeof client>
 beforeAll(async () => { await freshTestDb(); app = await startApp(); call = client(app.base) })
@@ -9,16 +10,26 @@ afterAll(async () => { await app.close(); await pool.end() })
 
 const register = (body: Record<string, unknown>, as = {}) => call("POST", "/api/auth/register", { body, as })
 const person = (email: string) => ({ name: "Budi", email, whatsapp: "0812-3456-7890", password: "rahasia123" })
+// Email tidak benar-benar dikirim di tes; link diambil dari outbox.
+const mails = (to: string) => outbox.filter(m => m.to === to)
+const tokenOf = (to: string) => mails(to).at(-1)!.text.match(/token=([\w-]+)/)![1]
+const verify = (token: string) => call("POST", "/api/auth/verify-email", { body: { token } })
+async function verifyAndLogin(email: string, password = "rahasia123") {
+  expect((await verify(tokenOf(email))).status).toBe(200)
+  const s: any = {}
+  const r = await call("POST", "/api/auth/login", { as: s, body: { email, password } })
+  expect(r.status).toBe(200)
+  return Object.assign(s, { res: r })
+}
 
 describe("B2 skenario uji", () => {
   it("skenario 3: form daftar dengan tambahan isian role admin tetap membuat guest", async () => {
-    const s = {}
-    const r = await register({ ...person("Penyusup@Tes.ID"), role: "admin" }, s)
+    const r = await register({ ...person("Penyusup@Tes.ID"), role: "admin" })
     expect(r.status).toBe(201)
-    expect(r.json.user.role).toBe("guest")
-    expect(r.json.user.email).toBe("penyusup@tes.id")
-    expect(r.json.user.whatsapp).toBe("6281234567890")
-    expect(verifyToken(r.json.access_token)!.role).toBe("guest")
+    expect(r.json).toEqual({ email: "penyusup@tes.id", needs_verification: true })
+    const s = await verifyAndLogin("penyusup@tes.id")
+    expect(s.res.json.user).toMatchObject({ role: "guest", email: "penyusup@tes.id", whatsapp: "6281234567890" })
+    expect(verifyToken(s.token)!.role).toBe("guest")
     expect((await one(pool, "select role from users where email = 'penyusup@tes.id'")).role).toBe("guest")
     expect((await call("GET", "/api/admin/users", { as: s })).status).toBe(403)
   })
@@ -60,9 +71,9 @@ describe("B2 akun dan token", () => {
   })
 
   it("refresh token di cookie httpOnly, dipakai sekali lalu diganti, dan role diambil dari database", async () => {
-    const s: any = {}
-    const r = await register(person("refresh@tes.id"), s)
-    const setCookie = r.headers.get("set-cookie")!
+    await register(person("refresh@tes.id"))
+    const s = await verifyAndLogin("refresh@tes.id")
+    const setCookie = s.res.headers.get("set-cookie")!
     expect(setCookie).toMatch(/HttpOnly/)
     expect(setCookie).toMatch(/Path=\/api\/auth/)
     const old = s.cookie
@@ -82,6 +93,7 @@ describe("B2 akun dan token", () => {
 
   it("masuk yang gagal dibatasi 5 kali per 15 menit per email", async () => {
     await register(person("tebak@tes.id"))
+    await verify(tokenOf("tebak@tes.id"))
     for (let i = 0; i < 5; i++)
       expect((await call("POST", "/api/auth/login", { body: { email: "tebak@tes.id", password: "salah-salah" } })).status).toBe(401)
     const blocked = await call("POST", "/api/auth/login", { body: { email: "tebak@tes.id", password: "rahasia123" } })
@@ -116,7 +128,7 @@ describe("B2 Kelola Akun", () => {
     const admin = await userSession(call, "admin")
     const r = await call("POST", "/api/admin/users", { as: admin, body: { name: "Admin Dua", email: "admin.dua@tes.id", whatsapp: "08129999999" } })
     expect(r.status).toBe(201)
-    expect(r.json.user).toMatchObject({ role: "admin", must_change_password: true })
+    expect(r.json.user).toMatchObject({ role: "admin", must_change_password: true, is_verified: true })
     const s: any = {}
     const login = await call("POST", "/api/auth/login", { as: s, body: { email: "admin.dua@tes.id", password: r.json.temporary_password } })
     expect(login.status).toBe(200)
@@ -151,6 +163,101 @@ describe("B2 Kelola Akun", () => {
   it("aturan 18.3: tidak ada endpoint hapus akun", async () => {
     const admin = await userSession(call, "admin"), c = await userSession(call, "client")
     expect((await call("DELETE", `/api/admin/users/${c.id}`, { as: admin })).status).toBe(404)
+  })
+})
+
+describe("Verifikasi email dan lupa password (keputusan tim 24 Nov 2026)", () => {
+  it("daftar mengirim link verifikasi; sebelum diklik tidak bisa masuk; link bisa diklik dua kali tanpa error", async () => {
+    await register(person("verif1@tes.id"))
+    const m = mails("verif1@tes.id").at(-1)!
+    expect(m.subject).toMatch(/Verifikasi/)
+    expect(m.text).toMatch(/: http:\/\/localhost:5173\/verifikasi-email\?token=[\w-]{40,}$/m)
+    expect(m.html).toContain("Halo Budi")
+    const before = await call("POST", "/api/auth/login", { body: { email: "verif1@tes.id", password: "rahasia123" } })
+    expect(before.status).toBe(403)
+    expect(before.json.code).toBe("EMAIL_NOT_VERIFIED")
+    // password salah tetap dijawab salah, tidak membocorkan status verifikasi
+    expect((await call("POST", "/api/auth/login", { body: { email: "verif1@tes.id", password: "salah-salah" } })).status).toBe(401)
+    expect((await verify("token-ngawur")).status).toBe(400)
+    const token = tokenOf("verif1@tes.id")
+    expect((await verify(token)).status).toBe(200)
+    expect((await verify(token)).status).toBe(200)
+    const s = await verifyAndLogin("verif1@tes.id")
+    expect(s.res.json.user.is_verified).toBe(true)
+  })
+
+  it("kirim ulang dibatasi sekali per menit, link lama langsung tidak berlaku, dan jawabannya sama untuk email yang tidak terdaftar", async () => {
+    await register(person("verif2@tes.id"))
+    const first = tokenOf("verif2@tes.id"), resend = (email: string) => call("POST", "/api/auth/resend-verification", { body: { email } })
+    expect((await resend("verif2@tes.id")).status).toBe(200)
+    expect(mails("verif2@tes.id")).toHaveLength(1)
+    await pool.query("update email_tokens set created_at = now() - interval '2 minutes' where user_id = (select id from users where email = 'verif2@tes.id')")
+    expect((await resend("verif2@tes.id")).status).toBe(200)
+    expect(mails("verif2@tes.id")).toHaveLength(2)
+    expect((await verify(first)).status).toBe(400)
+    expect((await verify(tokenOf("verif2@tes.id"))).status).toBe(200)
+    const count = outbox.length
+    const unknown = await resend("tidak.ada@tes.id")
+    expect(unknown.status).toBe(200)
+    expect(unknown.json).toEqual({ ok: true })
+    expect(outbox).toHaveLength(count)
+  })
+
+  it("link verifikasi kedaluwarsa setelah 24 jam", async () => {
+    await register(person("verif3@tes.id"))
+    expect((await one(pool, `select (extract(epoch from t.expires_at - t.created_at) / 3600)::int h from email_tokens t join users u on u.id = t.user_id where u.email = 'verif3@tes.id'`)).h).toBe(24)
+    await pool.query("update email_tokens set expires_at = now() - interval '1 second' where user_id = (select id from users where email = 'verif3@tes.id')")
+    expect((await verify(tokenOf("verif3@tes.id"))).status).toBe(400)
+  })
+
+  it("lupa password: link sekali pakai berlaku 1 jam, sesi lama dicabut, dan jawabannya sama untuk email yang tidak terdaftar", async () => {
+    const c = await userSession(call, "client"), forgot = (email: string) => call("POST", "/api/auth/forgot-password", { body: { email } })
+    expect((await forgot(c.email)).json).toEqual({ ok: true })
+    const m = mails(c.email).at(-1)!
+    expect(m.text).toMatch(/: http:\/\/localhost:5173\/reset-password\?token=[\w-]{40,}$/m)
+    const token = tokenOf(c.email), reset = (body: object) => call("POST", "/api/auth/reset-password", { body })
+    expect((await reset({ token, new_password: "pendek" })).status).toBe(400)
+    expect((await reset({ token, new_password: "password-reset-1" })).status).toBe(200)
+    expect((await reset({ token, new_password: "password-reset-2" })).status).toBe(400)
+    expect((await call("POST", "/api/auth/refresh", { as: { cookie: c.cookie } })).status).toBe(401)
+    expect((await call("POST", "/api/auth/login", { body: { email: c.email, password: "password-tes" } })).status).toBe(401)
+    expect((await call("POST", "/api/auth/login", { body: { email: c.email, password: "password-reset-1" } })).status).toBe(200)
+    // link kedaluwarsa setelah 1 jam
+    await pool.query("update email_tokens set created_at = now() - interval '2 minutes' where user_id = $1", [c.id])
+    await forgot(c.email)
+    expect((await one(pool, "select (extract(epoch from expires_at - created_at) / 3600)::int h from email_tokens where user_id = $1 order by created_at desc limit 1", [c.id])).h).toBe(1)
+    await pool.query("update email_tokens set expires_at = now() - interval '1 second' where user_id = $1", [c.id])
+    expect((await reset({ token: tokenOf(c.email), new_password: "password-reset-3" })).status).toBe(400)
+    const count = outbox.length
+    expect((await forgot("tidak.ada@tes.id")).json).toEqual({ ok: true })
+    expect(outbox).toHaveLength(count)
+  })
+
+  it("reset password lewat email ikut memverifikasi akun yang belum terverifikasi", async () => {
+    await register(person("verif4@tes.id"))
+    await call("POST", "/api/auth/forgot-password", { body: { email: "verif4@tes.id" } })
+    expect((await call("POST", "/api/auth/reset-password", { body: { token: tokenOf("verif4@tes.id"), new_password: "password-baru-4" } })).status).toBe(200)
+    expect((await call("POST", "/api/auth/login", { body: { email: "verif4@tes.id", password: "password-baru-4" } })).status).toBe(200)
+  })
+
+  it("kalau email gagal terkirim, akun batal dibuat dan pendaftar bisa mencoba lagi", async () => {
+    const real = globalThis.fetch, sent: any[] = []
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation((url: any, init?: any) => {
+      if (!String(url).startsWith("https://api.resend.com/")) return real(url, init)
+      sent.push(JSON.parse(init.body))
+      return Promise.resolve(new Response("{}", { status: 500 }))
+    })
+    process.env.RESEND_API_KEY = "re_tes"; process.env.EMAIL_FROM = "Tim PLTS <no-reply@contoh.id>"
+    try {
+      const r = await register(person("gagal@tes.id"))
+      expect(r.status).toBe(502)
+      expect(r.json.code).toBe("EMAIL_FAILED")
+      expect(sent[0]).toMatchObject({ from: "Tim PLTS <no-reply@contoh.id>", to: ["gagal@tes.id"] })
+      expect(await one(pool, "select 1 from users where email = 'gagal@tes.id'")).toBeUndefined()
+    } finally {
+      spy.mockRestore(); process.env.RESEND_API_KEY = ""; delete process.env.EMAIL_FROM
+    }
+    expect((await register(person("gagal@tes.id"))).status).toBe(201)
   })
 })
 

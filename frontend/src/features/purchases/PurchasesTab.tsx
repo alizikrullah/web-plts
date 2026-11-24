@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { fmtNum, rp } from "../../../../shared/format"
-import { api, fileBlob, openFile, uploadFile } from "../../core/api"
+import { api, fileBlob, openFile, showFile, uploadFile } from "../../core/api"
 import { Field, Loading, Message, useAction } from "../../core/ui"
 import { dateText, todayWib, useApi } from "../../core/useApi"
 
@@ -249,6 +249,11 @@ function Adjustments({ projectId, onChange }: { projectId: string; onChange: () 
       form.reset(); after()
     }, "Biaya Tambahan tercatat.")
   }
+  // Pratinjau dulu untuk pilihan yang sama persis, baru tombol terbit aktif (PRD 8.1).
+  const [checked, setChecked] = useState("")
+  const preview = () => bill.run(async () => {
+    await showFile(`/api/admin/projects/${projectId}/invoices/tambahan/preview?ids=${picked.join(",")}`); setChecked(picked.join(","))
+  })
   const invoice = () => bill.run(async () => {
     await api(`/api/admin/projects/${projectId}/invoices/tambahan`, { body: { cost_adjustment_ids: picked } }); setPicked([]); after()
   }, "Tagihan tambahan terbit. Lihat di tab Penagihan.")
@@ -273,7 +278,10 @@ function Adjustments({ projectId, onChange }: { projectId: string; onChange: () 
             <label key={x.id}><input type="checkbox" checked={picked.includes(x.id)} onChange={e => setPicked(p => e.target.checked ? [...p, x.id] : p.filter(id => id !== x.id))} />
               {CATEGORY[x.category as keyof typeof CATEGORY]} {rp(x.amount)}: {x.explanation}</label>
           ))}
-          <button type="button" className="btn pri" disabled={bill.busy || !picked.length} onClick={invoice}>Buat tagihan tambahan</button>
+          <div className="actions">
+            <button type="button" className="btn" disabled={bill.busy || !picked.length} onClick={preview}>Pratinjau tagihan tambahan</button>
+            <button type="button" className="btn pri" disabled={bill.busy || !picked.length || checked !== picked.join(",")} onClick={invoice}>Buat tagihan tambahan</button>
+          </div>
         </fieldset>
       )}
       <Message msg={bill.msg} />

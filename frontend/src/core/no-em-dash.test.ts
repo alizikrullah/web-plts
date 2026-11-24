@@ -9,6 +9,7 @@ const root = fileURLToPath(new URL("../../..", import.meta.url))
 const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(e =>
   ["node_modules", "dist", ".git"].includes(e.name) ? [] : e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)])
 
-it("tidak ada em dash di proyek", () => {
+// Batas waktu longgar: saat mesin sibuk (misalnya tepat setelah tes lewat layar), membaca semua file bisa lambat.
+it("tidak ada em dash di proyek", { timeout: 30_000 }, () => {
   expect(walk(root).filter(f => readFileSync(f, "utf8").includes(EM_DASH))).toEqual([])
 })

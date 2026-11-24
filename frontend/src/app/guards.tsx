@@ -1,7 +1,7 @@
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { Navigate, useLocation } from "react-router"
 import type { Role } from "../core/api"
-import { useSession } from "../core/session"
+import { afterLogin, forgetAfterLogin, useSession } from "../core/session"
 import { Loading } from "../core/ui"
 
 // Penjaga rute hanya memilih tampilan; pengaman yang sebenarnya ada di backend (PRD bagian 4).
@@ -14,9 +14,11 @@ export function RequireRole({ roles, children }: { roles?: Role[]; children: Rea
   return children
 }
 
-// Halaman Masuk dan Daftar. Setelah berhasil masuk, user dibawa ke halaman yang tadi ingin dibuka.
+// Halaman Masuk, Daftar, dan Lupa password. Setelah berhasil masuk, user dibawa ke halaman yang tadi ingin dibuka,
+// termasuk tujuan yang disimpan saat daftar sebelum verifikasi email.
 export function AnonOnly({ children }: { children: ReactNode }) {
   const session = useSession(), from = (useLocation().state as { from?: string } | null)?.from
+  useEffect(() => { if (session.status === "user") forgetAfterLogin() }, [session.status])
   if (session.status === "loading") return <Loading />
-  return session.status === "user" ? <Navigate to={from ?? "/"} replace /> : children
+  return session.status === "user" ? <Navigate to={from ?? afterLogin() ?? "/"} replace /> : children
 }

@@ -54,8 +54,8 @@ let db: pg.Pool
 beforeAll(async () => { db = await freshTestDb() })
 afterAll(async () => { await db.end(); await pool.end() })
 
-it("PRD bagian 17 memuat 22 tabel", () => {
-  expect(tables).toHaveLength(22)
+it("PRD bagian 17 memuat 23 tabel", () => {
+  expect(tables).toHaveLength(23)
 })
 
 it("tabel, kolom, tipe, wajib isi, PK, dan FK di database sama dengan PRD bagian 17", async () => {

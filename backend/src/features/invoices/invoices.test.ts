@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { all, one, pool } from "../../core/db.js"
 import { flow } from "../../test/flow.js"
 import { seedTestData, type PartKey } from "../../test/test-data.js"
-import { client, freshTestDb, startApp, userSession, type Session } from "../../test/test-db.js"
+import { client, freshTestDb, pdfText, startApp, userSession, type Session } from "../../test/test-db.js"
 
 let app: Awaited<ReturnType<typeof startApp>>, call: ReturnType<typeof client>, admin: Session, ids: Record<PartKey, string>, f: ReturnType<typeof flow>
 beforeAll(async () => {
@@ -38,6 +38,40 @@ describe("B6 skenario uji", () => {
     expect(pdf.status).toBe(200)
     expect(pdf.headers.get("content-type")).toBe("application/pdf")
     expect(pdf.buf!.subarray(0, 5).toString()).toBe("%PDF-")
+  })
+
+  it("PDF tagihan untuk client: part rinci, SDM, Jasa, dan Akomodasi jadi satu baris Biaya Jasa; pratinjau sama tapi tidak menyimpan apa pun", async () => {
+    const { project, session } = await f.accepted()
+    const preview = () => call("GET", `/api/admin/projects/${project.id}/invoices/preview`, { as: admin })
+    expect((await preview()).json.code).toBe("PLANNING_DRAFT")
+    const pl = await f.finalPlanning(project.id)
+    const count = async () => (await one(pool, "select count(*)::int n from invoices where project_id = $1", [project.id])).n
+    const r = await preview()
+    expect(r.status).toBe(200)
+    expect(r.headers.get("content-type")).toMatch(/application\/pdf/)
+    const text = await pdfText(r.buf!)
+    const rp = (n: number) => "Rp" + n.toLocaleString("id-ID")
+    const jasa = pl.total_labor + pl.total_services + pl.total_accommodation
+    expect(text).toContain("PRATINJAU")
+    expect(text).toContain(`Total Part ${rp(pl.total_parts)}`)
+    expect(text).toContain(`Biaya Jasa ${rp(jasa)}`)
+    expect(text).toContain(`TOTAL TAGIHAN ${rp(pl.grand_total)}`)
+    for (const hidden of ["SDM", "Akomodasi", "Transport tim", "Instalasi dan setting inverter", "orang"]) expect(text, hidden).not.toContain(hidden)
+    // pratinjau tidak menyimpan tagihan dan tidak mengubah status proyek
+    expect(await count()).toBe(0)
+    expect(await f.statusKey(project.id)).toBe("planning")
+    expect((await call("GET", `/api/admin/projects/${project.id}/invoices/preview`, { as: session })).status).toBe(403)
+
+    const invoice = await f.issue(project.id)
+    const issued = await pdfText((await call("GET", `/api/files/${invoice.pdf_file_id}`, { as: session })).buf!)
+    expect(issued).toContain(`No: ${invoice.number}`)
+    expect(issued).not.toContain("PRATINJAU")
+    // isi tagihan yang terbit sama dengan pratinjaunya, kecuali nomor
+    const body = (t: string) => t.slice(t.indexOf("Ditagihkan kepada"))
+    expect(body(issued)).toBe(body(text))
+    // di database rincian tetap tersimpan per kelompok untuk admin
+    expect(invoice).toMatchObject({ amount_labor: pl.total_labor, amount_services: pl.total_services, amount_accommodation: pl.total_accommodation })
+    expect((await preview()).json.code).toBe("INVALID_STATUS")
   })
 
   it("skenario 20: tagihan awal yang belum dibayar dibatalkan, proyek kembali ke Planning dan Planning bisa diubah lagi", async () => {

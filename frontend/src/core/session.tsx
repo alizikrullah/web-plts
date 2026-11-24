@@ -22,8 +22,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 }
 
 export const login = (email: string, password: string) => api<Auth>("/api/auth/login", { body: { email, password } }).then(setAuth)
+// Daftar tidak langsung masuk: akun aktif setelah link verifikasi di email diklik (PRD bagian 4).
 export const register = (body: { name: string; email: string; whatsapp: string; password: string }) =>
-  api<Auth>("/api/auth/register", { body }).then(setAuth)
+  api<{ email: string; needs_verification: true }>("/api/auth/register", { body })
+
+// Halaman tujuan setelah masuk (misalnya kembali ke Simulator) disimpan di browser, karena link verifikasi
+// biasanya dibuka dari aplikasi email, jadi tujuan di riwayat halaman ikut hilang.
+const AFTER = "plts-setelah-masuk"
+export const rememberAfterLogin = (path: string | undefined) => { try { if (path) localStorage.setItem(AFTER, path) } catch { /* diblokir */ } }
+export const afterLogin = () => { try { return localStorage.getItem(AFTER) } catch { return null } }
+export const forgetAfterLogin = () => { try { localStorage.removeItem(AFTER) } catch { /* diblokir */ } }
 // Keluar mencabut refresh token di backend.
 export async function logout() {
   await api("/api/auth/logout", { method: "POST" }).catch(() => {})

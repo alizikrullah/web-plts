@@ -26,12 +26,17 @@ for (const t of tables) {
   if (!c.meta) await ok(directus(`/collections/${t}`, { method: "PATCH", token, body: { meta: { note: NOTE } } }))
 }
 
-const found = await ok(directus(`/roles?filter[name][_eq]=${encodeURIComponent(ROLE)}`, { token }))
+const read = (collection: string) => ({ collection, action: "read", fields: ["*"], permissions: {}, validation: {} })
+const found = await ok(directus(`/roles?filter[name][_eq]=${encodeURIComponent(ROLE)}&fields=id,policies.policy.id`, { token }))
 if (!found.length) {
   const policy = await ok(directus("/policies", { method: "POST", token, body: {
-    name: ROLE, icon: "visibility", admin_access: false, app_access: true,
-    permissions: tables.map(collection => ({ collection, action: "read", fields: ["*"], permissions: {}, validation: {} })),
+    name: ROLE, icon: "visibility", admin_access: false, app_access: true, permissions: tables.map(read),
   } }))
   await ok(directus("/roles", { method: "POST", token, body: { name: ROLE, icon: "visibility", policies: [{ policy: policy.id }] } }))
+} else {
+  // Role sudah ada: tabel dari migrasi baru ikut diberi izin baca.
+  const policy = found[0].policies[0].policy.id
+  const has = new Set((await ok(directus(`/permissions?filter[policy][_eq]=${policy}&limit=-1&fields=collection`, { token }))).map((p: any) => p.collection))
+  for (const t of tables.filter(t => !has.has(t))) await ok(directus("/permissions", { method: "POST", token, body: { ...read(t), policy } }))
 }
 console.log(`${tables.length} tabel terdaftar di Directus, role "${ROLE}" siap`)

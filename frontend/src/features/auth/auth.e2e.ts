@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { MENU, PASSWORD, adminToken, call, expectMenu, loginUi, nav, newClient, uniqueEmail } from "../../test/e2e"
+import { MENU, PASSWORD, adminToken, call, expectMenu, loginUi, mailLink, nav, newClient, newGuest, uniqueEmail } from "../../test/e2e"
 
 test("skenario 3: form daftar dikirim dengan tambahan isian role admin, akun tetap guest", async ({ page, request }) => {
   // Isian role disisipkan ke kiriman form, seperti orang yang mengutak-atik permintaan dari browser.
@@ -9,8 +9,17 @@ test("skenario 3: form daftar dikirim dengan tambahan isian role admin, akun tet
   await page.getByLabel("Nama").fill("Guest Tiga")
   await page.getByLabel("Email").fill(email)
   await page.getByLabel("Nomor WhatsApp").fill("0812 3456 7890")
-  await page.getByLabel("Password").fill(PASSWORD)
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD)
   await page.getByRole("button", { name: "Daftar" }).click()
+  // Akun baru belum bisa dipakai sebelum link verifikasi di email diklik.
+  await expect(page.getByRole("heading", { name: "Cek email Anda" })).toBeVisible()
+  await expect(page.getByText(email)).toBeVisible()
+  await page.goto(await mailLink(request, email))
+  await expect(page.getByRole("heading", { name: "Email terverifikasi" })).toBeVisible()
+  await page.getByRole("main").getByRole("link", { name: "Masuk", exact: true }).click()
+  await page.getByLabel("Email").fill(email)
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD)
+  await page.getByRole("button", { name: "Masuk" }).click()
   await expectMenu(page, MENU.guest)
   await nav(page).getByRole("link", { name: "Akun" }).click()
   await expect(page.getByText("Guest", { exact: true })).toBeVisible()
@@ -21,7 +30,7 @@ test("skenario 3: form daftar dikirim dengan tambahan isian role admin, akun tet
 test("masuk dengan password salah ditolak dengan pesan yang jelas", async ({ page }) => {
   await page.goto("/masuk")
   await page.getByLabel("Email").fill("admin@e2e.test")
-  await page.getByLabel("Password").fill("password-salah")
+  await page.getByLabel("Password", { exact: true }).fill("password-salah")
   await page.getByRole("button", { name: "Masuk" }).click()
   await expect(page.getByRole("alert")).toHaveText("Email atau password salah")
   await expectMenu(page, MENU.visitor)
@@ -32,7 +41,7 @@ test("password sementara wajib diganti sebelum memakai fitur lain", async ({ pag
   const created = await call(request, "POST", "/api/admin/users", { token: await adminToken(request), body: { name: "Admin Baru", email, whatsapp: "081200000002" } })
   await page.goto("/masuk")
   await page.getByLabel("Email").fill(email)
-  await page.getByLabel("Password").fill(created.temporary_password)
+  await page.getByLabel("Password", { exact: true }).fill(created.temporary_password)
   await page.getByRole("button", { name: "Masuk" }).click()
   await expect(page).toHaveURL(/\/akun$/)
   await expect(page.getByText("Anda masuk dengan password sementara")).toBeVisible()
@@ -64,7 +73,51 @@ test("skenario 14: akun client dinonaktifkan, akses berhenti paling lama 15 meni
   await expect(page).toHaveURL(/\/masuk$/)
   await expectMenu(page, MENU.visitor)
   await page.getByLabel("Email").fill(client.email)
-  await page.getByLabel("Password").fill(PASSWORD)
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD)
   await page.getByRole("button", { name: "Masuk" }).click()
   await expect(page.getByRole("alert")).toHaveText("Akun dinonaktifkan. Hubungi admin.")
+})
+
+test("masuk sebelum email diverifikasi ditolak, dan link verifikasi bisa dikirim ulang dari halaman Masuk", async ({ page, request }) => {
+  const email = uniqueEmail()
+  await call(request, "POST", "/api/auth/register", { body: { name: "Belum Verifikasi", email, whatsapp: "081200000003", password: PASSWORD } })
+  await page.goto("/masuk")
+  await page.getByLabel("Email").fill(email)
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD)
+  await page.getByRole("button", { name: "Masuk" }).click()
+  await expect(page.getByRole("alert")).toHaveText(/^Email belum diverifikasi/)
+  await page.getByRole("button", { name: "Kirim ulang link verifikasi" }).click()
+  await expect(page.getByRole("status")).toHaveText(`Kalau ${email} belum terverifikasi, link baru sudah dikirim. Cek email Anda.`)
+  await expect(page.getByRole("button", { name: "Kirim ulang link verifikasi" })).toBeDisabled()
+  await expectMenu(page, MENU.visitor)
+})
+
+test("lupa password lewat email: link reset, password baru bisa ditampilkan dengan tombol mata, lalu masuk", async ({ page, request }) => {
+  const g = await newGuest(request, "Guest Lupa")
+  await page.goto("/masuk")
+  await page.getByRole("link", { name: "Lupa password?" }).click()
+  await page.getByLabel("Email").fill(g.email)
+  await page.getByRole("button", { name: "Kirim link reset" }).click()
+  await expect(page.getByRole("status")).toHaveText(/^Kalau email itu terdaftar, link untuk membuat password baru sudah dikirim/)
+  await page.goto(await mailLink(request, g.email))
+  const pw = page.getByLabel("Password baru", { exact: true })
+  await pw.fill("password-baru-lupa")
+  await expect(pw).toHaveAttribute("type", "password")
+  await page.getByRole("button", { name: "Tampilkan password" }).first().click()
+  await expect(pw).toHaveAttribute("type", "text")
+  await page.getByRole("button", { name: "Sembunyikan password" }).click()
+  await expect(pw).toHaveAttribute("type", "password")
+  await page.getByLabel("Ulangi password baru").fill("password-baru-lupa")
+  await page.getByRole("button", { name: "Simpan password baru" }).click()
+  await expect(page.getByRole("status")).toHaveText("Password sudah diganti. Silakan masuk dengan password baru.")
+  await loginUi(page, g.email, "password-baru-lupa")
+  await expectMenu(page, MENU.guest)
+})
+
+test("link verifikasi yang tidak berlaku menampilkan alasannya dan cara meminta link baru", async ({ page }) => {
+  await page.goto("/verifikasi-email?token=token-ngawur")
+  await expect(page.getByRole("heading", { name: "Link tidak berlaku" })).toBeVisible()
+  await expect(page.getByRole("alert")).toHaveText(/^Link verifikasi tidak berlaku atau sudah kedaluwarsa/)
+  await page.getByLabel("Email").fill("siapa@e2e.test")
+  await expect(page.getByRole("button", { name: "Kirim ulang link verifikasi" })).toBeVisible()
 })

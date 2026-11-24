@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { rp } from "../../../../shared/format"
-import { api, openFile, uploadFile } from "../../core/api"
+import { api, openFile, showFile, uploadFile } from "../../core/api"
 import { Field, Loading, Message, useAction } from "../../core/ui"
 import { dateText, todayWib, useApi } from "../../core/useApi"
 
@@ -15,20 +15,28 @@ const STATUS = { terbit: "Belum lunas", lunas: "Lunas", batal: "Batal" }
 // Penagihan (PRD 8.1 dan 8.2): tagihan awal dari Planning final, PDF, pembatalan, dan pembayaran dengan bukti.
 export default function InvoicesTab({ projectId, onChange }: { projectId: string; onChange: () => void }) {
   const d = useApi<{ invoices: Invoice[] }>(`/api/admin/projects/${projectId}/invoices`)
-  const act = useAction()
+  const act = useAction(), [checked, setChecked] = useState(false)
   if (!d.data) return <Loading />
   const after = () => { d.reload(); onChange() }
   const hasInitial = d.data.invoices.some(i => i.type === "awal" && i.status !== "batal")
-  const issue = () => act.run(async () => { await api(`/api/admin/projects/${projectId}/invoices`, { body: {} }); after() }, "Tagihan awal terbit. Status proyek pindah ke Menunggu Pembayaran.")
+  // Pratinjau dulu (PRD 8.1): PDF persis seperti yang diterima client, belum bernomor dan tidak disimpan.
+  const preview = () => act.run(async () => { await showFile(`/api/admin/projects/${projectId}/invoices/preview`); setChecked(true) })
+  const issue = () => act.run(async () => { await api(`/api/admin/projects/${projectId}/invoices`, { body: {} }); setChecked(false); after() },
+    "Tagihan awal terbit. Status proyek pindah ke Menunggu Pembayaran.")
 
   return (
     <>
       {!hasInitial && (
         <div className="card form">
           <h2>Tagihan awal</h2>
-          <p className="sub">Tagihan dibuat dari Planning final dan dibayar penuh di depan.</p>
+          <p className="sub">Tagihan dibuat dari Planning final dan dibayar penuh di depan. Cek pratinjaunya dulu: PDF-nya persis seperti yang diterima client.
+            Kalau ada yang salah, kembalikan Planning ke draf lalu ubah di sana.</p>
           <Message msg={act.msg} />
-          <button type="button" className="btn pri" disabled={act.busy} onClick={issue}>Terbitkan tagihan awal</button>
+          <div className="actions">
+            <button type="button" className="btn" disabled={act.busy} onClick={preview}>Pratinjau tagihan</button>
+            <button type="button" className="btn pri" disabled={act.busy || !checked} onClick={issue}>Terbitkan tagihan awal</button>
+          </div>
+          {!checked && <p className="hint">Tombol terbit aktif setelah pratinjau dibuka.</p>}
         </div>
       )}
       {hasInitial && <Message msg={act.msg} />}

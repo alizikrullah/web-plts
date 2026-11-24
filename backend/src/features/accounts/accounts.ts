@@ -1,15 +1,18 @@
 import { Router, type Response } from "express"
 import { all, one, pool, tx, type Db } from "../../core/db.js"
 import { allow, auth, cookie, fail, param, v, type Role } from "../../core/http.js"
+import { appUrl, mail, sendMail } from "../../core/email.js"
 import { REFRESH_TTL_SEC, checkPassword, hashPassword, hashToken, newRefreshToken, signAccess, tempPassword } from "../../core/tokens.js"
 
-// B2: daftar, masuk, token, /me, Kelola Akun (PRD bagian 4).
+// B2: daftar, masuk, token, /me, Kelola Akun (PRD bagian 4). Daftar sendiri wajib verifikasi email dulu sebelum bisa masuk,
+// dan lupa password bisa lewat email selain lewat password sementara dari admin.
 export const router = Router()
 const COOKIE = "refresh_token"
 const LOGIN_LIMIT = 5, LOGIN_WINDOW = "15 minutes"
-const PUBLIC_USER = "id, name, email, whatsapp, role, is_active, must_change_password, became_client_at, created_at"
+const PUBLIC_USER = "id, name, email, whatsapp, role, is_active, is_verified, must_change_password, became_client_at, created_at"
 
-interface User { id: string; role: Role; must_change_password: boolean; is_active: boolean; password_hash: string }
+interface User { id: string; name: string; email: string; role: Role; must_change_password: boolean; is_active: boolean; is_verified: boolean; password_hash: string }
+type Purpose = "verifikasi" | "reset_password"
 
 const password = (b: Record<string, unknown>, k: string) => {
   const pw = b[k]
@@ -30,14 +33,90 @@ const clearCookie = (res: Response) => res.setHeader("Set-Cookie", `${COOKIE}=; 
 export const revokeAll = (db: Db, userId: string) =>
   db.query("update refresh_tokens set revoked_at = now() where user_id = $1 and revoked_at is null", [userId])
 
+// Token email sekali pakai. Token lama dengan tujuan yang sama langsung tidak berlaku lagi; yang disimpan hanya hash-nya.
+async function emailToken(db: Db, userId: string, purpose: Purpose, ttl: string) {
+  const token = newRefreshToken()
+  await db.query("update email_tokens set used_at = now() where user_id = $1 and purpose = $2 and used_at is null", [userId, purpose])
+  await db.query("insert into email_tokens (user_id, purpose, token_hash, expires_at) values ($1, $2, $3, now() + $4::interval)",
+    [userId, purpose, hashToken(token), ttl])
+  return token
+}
+// Kirim ulang paling cepat sekali per menit per akun, supaya tombol kirim ulang tidak bisa dipakai membanjiri email orang.
+const sentRecently = async (userId: string, purpose: Purpose) =>
+  !!(await one(pool, "select 1 from email_tokens where user_id = $1 and purpose = $2 and created_at > now() - interval '1 minute'", [userId, purpose]))
+
+async function sendVerification(db: Db, user: { id: string; name: string; email: string }) {
+  const token = await emailToken(db, user.id, "verifikasi", "24 hours")
+  await sendMail(mail(user.email, "Verifikasi email akun PLTS Rumah", [
+    `Halo ${user.name},`,
+    "Terima kasih sudah mendaftar. Klik tombol di bawah untuk memverifikasi email Anda. Link berlaku 24 jam.",
+    "Kalau Anda tidak merasa mendaftar, abaikan email ini.",
+  ], { url: appUrl(`/verifikasi-email?token=${token}`), label: "Verifikasi email" }))
+}
+
 // Register selalu membuat guest. Isian role dari form diabaikan (PRD bagian 2, aturan role 1).
+// Akun belum bisa dipakai masuk sampai link verifikasi di email diklik. Kalau email gagal terkirim, akun batal dibuat.
 router.post("/auth/register", async (req, res) => {
   const b = req.body ?? {}
   const name = v.str(b, "name"), email = v.email(b), whatsapp = v.whatsapp(b), pw = password(b, "password")
   if (await one(pool, "select 1 from users where email = $1", [email])) fail(409, "Email sudah terdaftar", "EMAIL_TAKEN")
-  const user = (await one<User>(pool, `insert into users (name, email, whatsapp, password_hash) values ($1, $2, $3, $4) returning *`,
-    [name, email, whatsapp, await hashPassword(pw)]))!
-  res.status(201).json({ access_token: await startSession(res, user), user: await me(user.id) })
+  const hash = await hashPassword(pw)
+  await tx(async c => {
+    const user = (await one(c, "insert into users (name, email, whatsapp, password_hash) values ($1, $2, $3, $4) returning id, name, email",
+      [name, email, whatsapp, hash]))!
+    await sendVerification(c, user)
+  })
+  res.status(201).json({ email, needs_verification: true })
+})
+
+router.post("/auth/resend-verification", async (req, res) => {
+  const email = v.email(req.body ?? {})
+  const user = await one(pool, "select id, name, email from users where email = $1 and is_active and not is_verified", [email])
+  if (user && !(await sentRecently(user.id, "verifikasi"))) await tx(c => sendVerification(c, user))
+  // Jawaban selalu sama, supaya tidak bisa dipakai menebak email mana yang terdaftar.
+  res.json({ ok: true })
+})
+
+router.post("/auth/verify-email", async (req, res) => {
+  const token = typeof req.body?.token === "string" ? req.body.token : ""
+  const row = token ? await one(pool, `select t.id, t.used_at, t.expires_at > now() fresh, u.id user_id, u.is_verified
+    from email_tokens t join users u on u.id = t.user_id where t.token_hash = $1 and t.purpose = 'verifikasi'`, [hashToken(token)]) : null
+  // Link yang sudah dipakai dan akunnya sudah terverifikasi tetap dijawab berhasil, misalnya kalau link diklik dua kali.
+  if (!row || (row.used_at ? !row.is_verified : !row.fresh))
+    fail(400, "Link verifikasi tidak berlaku atau sudah kedaluwarsa. Minta kirim ulang link verifikasi.", "INVALID_TOKEN")
+  if (!row.used_at) await tx(async c => {
+    await c.query("update email_tokens set used_at = now() where id = $1", [row.id])
+    await c.query("update users set is_verified = true where id = $1", [row.user_id])
+  })
+  res.json({ ok: true })
+})
+
+router.post("/auth/forgot-password", async (req, res) => {
+  const email = v.email(req.body ?? {})
+  const user = await one(pool, "select id, name, email from users where email = $1 and is_active", [email])
+  if (user && !(await sentRecently(user.id, "reset_password"))) await tx(async c => {
+    const token = await emailToken(c, user.id, "reset_password", "1 hour")
+    await sendMail(mail(user.email, "Reset password akun PLTS Rumah", [
+      `Halo ${user.name},`,
+      "Ada permintaan untuk mengganti password akun Anda. Klik tombol di bawah untuk membuat password baru. Link berlaku 1 jam.",
+      "Kalau Anda tidak meminta ini, abaikan email ini. Password lama tetap berlaku.",
+    ], { url: appUrl(`/reset-password?token=${token}`), label: "Buat password baru" }))
+  })
+  res.json({ ok: true })
+})
+
+// Password baru dari link email. Semua sesi lama dicabut. Membuka link dari email juga membuktikan email itu milik user.
+router.post("/auth/reset-password", async (req, res) => {
+  const b = req.body ?? {}
+  const token = typeof b.token === "string" ? b.token : "", next = password(b, "new_password"), hash = await hashPassword(next)
+  await tx(async c => {
+    const row = token ? await one(c, `update email_tokens set used_at = now()
+      where token_hash = $1 and purpose = 'reset_password' and used_at is null and expires_at > now() returning user_id`, [hashToken(token)]) : null
+    if (!row) fail(400, "Link reset password tidak berlaku atau sudah kedaluwarsa. Minta link baru.", "INVALID_TOKEN")
+    await c.query("update users set password_hash = $2, must_change_password = false, is_verified = true where id = $1", [row.user_id, hash])
+    await revokeAll(c, row.user_id)
+  })
+  res.json({ ok: true })
 })
 
 router.post("/auth/login", async (req, res) => {
@@ -52,6 +131,7 @@ router.post("/auth/login", async (req, res) => {
     fail(401, "Email atau password salah", "BAD_CREDENTIALS")
   }
   if (!user!.is_active) fail(403, "Akun dinonaktifkan. Hubungi admin.", "INACTIVE")
+  if (!user!.is_verified) fail(403, "Email belum diverifikasi. Buka link verifikasi di email Anda, atau kirim ulang linknya.", "EMAIL_NOT_VERIFIED")
   res.json({ access_token: await startSession(res, user!), user: await me(user!.id) })
 })
 
@@ -109,12 +189,13 @@ router.get("/admin/users", auth, allow("admin"), async (req, res) => {
 })
 
 // Membuat akun dengan password sementara yang wajib diganti saat masuk berikutnya.
+// Akun yang dibuat admin langsung terverifikasi: admin yang menerima datanya langsung dari orangnya.
 export async function createAccount(db: Db, b: Record<string, unknown>, role: Role) {
   const name = v.str(b, "name"), email = v.email(b), whatsapp = v.whatsapp(b)
   if (await one(db, "select 1 from users where email = $1", [email])) fail(409, "Email sudah terdaftar", "EMAIL_TAKEN")
   const temp = tempPassword()
-  const user = await one(db, `insert into users (name, email, whatsapp, password_hash, must_change_password, role, became_client_at)
-    values ($1, $2, $3, $4, true, $5::varchar, case when $5::varchar = 'client' then now() end) returning ${PUBLIC_USER}`,
+  const user = await one(db, `insert into users (name, email, whatsapp, password_hash, must_change_password, role, became_client_at, is_verified)
+    values ($1, $2, $3, $4, true, $5::varchar, case when $5::varchar = 'client' then now() end, true) returning ${PUBLIC_USER}`,
     [name, email, whatsapp, await hashPassword(temp), role])
   return { user, temporary_password: temp }
 }

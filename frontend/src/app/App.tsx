@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router"
 import AccountPage from "../features/account/AccountPage"
+import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "../features/auth/EmailPages"
 import LoginPage from "../features/auth/LoginPage"
 import RegisterPage from "../features/auth/RegisterPage"
 import HomePage from "../features/home/HomePage"
@@ -25,6 +26,9 @@ export default function App() {
         <Route path="simulator/:id" element={<RequireRole><SavedSimulation /></RequireRole>} />
         <Route path="masuk" element={<AnonOnly><LoginPage /></AnonOnly>} />
         <Route path="daftar" element={<AnonOnly><RegisterPage /></AnonOnly>} />
+        <Route path="lupa-password" element={<AnonOnly><ForgotPasswordPage /></AnonOnly>} />
+        <Route path="verifikasi-email" element={<VerifyEmailPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="akun" element={<RequireRole><AccountPage /></RequireRole>} />
         <Route path="status-pengerjaan" element={<RequireRole roles={["client", "admin"]}><ClientProjectPage view="status" /></RequireRole>} />
         <Route path="invoice-pembelian" element={<RequireRole roles={["client", "admin"]}><ClientProjectPage view="pembelian" /></RequireRole>} />

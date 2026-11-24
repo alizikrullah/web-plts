@@ -1,7 +1,7 @@
 import { createRequire } from "node:module"
 import { expect, test, type Page } from "@playwright/test"
 import type { SimSettings } from "../../../../shared/calc/simulator"
-import { PASSWORD, call, loginUi, uniqueEmail } from "../../test/e2e"
+import { PASSWORD, call, loginUi, mailLink, uniqueEmail } from "../../test/e2e"
 
 // Modul hitung bersama tidak punya package.json sendiri, jadi Playwright memuatnya sebagai CommonJS.
 const { recommend } = createRequire(import.meta.url)("../../../../shared/calc/simulator.ts") as typeof import("../../../../shared/calc/simulator")
@@ -42,17 +42,25 @@ test("skenario 16: hemat per bulan di mode sederhana tidak pernah melebihi tagih
   }
 })
 
-test("skenario 8: pengunjung mengisi simulator lalu daftar, isian terakhir masih ada, lalu simpan dan ajukan", async ({ page }) => {
+test("skenario 8: pengunjung mengisi simulator, daftar, verifikasi email, lalu masuk; isian terakhir masih ada, lalu simpan dan ajukan", async ({ page, request }) => {
   await page.goto("/simulator")
   await page.getByLabel("Daya PLN").selectOption("3500")
   await page.getByLabel("Tagihan listrik per bulan").fill("2.500.000")
   await page.getByLabel("Pola pemakaian").selectOption("ramai_siang")
   await page.getByRole("link", { name: "Daftar untuk menyimpan" }).click()
   await page.getByLabel("Nama").fill("Guest Delapan")
-  await page.getByLabel("Email").fill(uniqueEmail())
+  const email = uniqueEmail()
+  await page.getByLabel("Email").fill(email)
   await page.getByLabel("Nomor WhatsApp").fill("081234567890")
-  await page.getByLabel("Password").fill(PASSWORD)
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD)
   await page.getByRole("button", { name: "Daftar" }).click()
+  await expect(page.getByRole("heading", { name: "Cek email Anda" })).toBeVisible()
+  // Link verifikasi dibuka seperti dari aplikasi email, lalu masuk: kembali ke Simulator.
+  await page.goto(await mailLink(request, email))
+  await page.getByRole("main").getByRole("link", { name: "Masuk", exact: true }).click()
+  await page.getByLabel("Email").fill(email)
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD)
+  await page.getByRole("button", { name: "Masuk" }).click()
   await expect(page).toHaveURL(/\/simulator$/)
   await expect(page.getByLabel("Daya PLN")).toHaveValue("3500")
   await expect(page.getByLabel("Tagihan listrik per bulan")).toHaveValue("2.500.000")

@@ -21,6 +21,11 @@ test("skenario 9: Planning dijadikan final, tagihan awal terbit lalu dicatat lun
   await expect(page.getByText(/^Harga berlaku sampai /)).toBeVisible()
 
   await page.getByRole("button", { name: "Penagihan" }).click()
+  await expect(page.getByRole("button", { name: "Terbitkan tagihan awal" })).toBeDisabled()
+  const preview = page.waitForEvent("popup")
+  await page.getByRole("button", { name: "Pratinjau tagihan", exact: true }).click()
+  await expect.poll(async () => (await preview).url()).toMatch(/^blob:/)
+  await (await preview).close()
   await page.getByRole("button", { name: "Terbitkan tagihan awal" }).click()
   await expect(page.getByText("Tagihan awal terbit.")).toBeVisible()
   await expect(statusHeader(page)).toHaveText("Menunggu Pembayaran")
@@ -62,6 +67,11 @@ test("skenario 20: tagihan awal yang belum dibayar dibatalkan, proyek kembali ke
   // Tagihan baru bisa diterbitkan lagi setelah Planning final.
   await page.getByRole("button", { name: "Jadikan final" }).click()
   await page.getByRole("button", { name: "Penagihan" }).click()
+  await expect(page.getByRole("button", { name: "Terbitkan tagihan awal" })).toBeDisabled()
+  const preview = page.waitForEvent("popup")
+  await page.getByRole("button", { name: "Pratinjau tagihan", exact: true }).click()
+  await expect.poll(async () => (await preview).url()).toMatch(/^blob:/)
+  await (await preview).close()
   await page.getByRole("button", { name: "Terbitkan tagihan awal" }).click()
   await expect(statusHeader(page)).toHaveText("Menunggu Pembayaran")
   await expect(page.locator(".pill.terbit")).toHaveText("Belum lunas")

@@ -10,6 +10,8 @@ export default defineConfig({
       STORAGE_DIR: join(tmpdir(), "plts-tes-file"),
       // Tes tidak pernah memanggil Groq asli walaupun kuncinya sudah diisi di .env. Tes pembaca memakai tiruan.
       GROQ_API_KEY: "",
+      // Tes tidak pernah mengirim email asli. Email masuk ke outbox untuk dicek.
+      RESEND_API_KEY: "",
     },
     fileParallelism: false,
     hookTimeout: 60000,

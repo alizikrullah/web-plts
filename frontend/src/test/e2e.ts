@@ -24,9 +24,22 @@ export const adminToken = async (request: APIRequestContext) =>
 let n = 0
 export const uniqueEmail = () => `user${Date.now()}${++n}@e2e.test`
 
+// Email tidak benar-benar dikirim saat tes. Backend tes menyimpannya, dan linknya diambil dari sini.
+export async function mailLink(request: APIRequestContext, email: string) {
+  const mails = (await call(request, "GET", "/api/__test/outbox")).mails as { to: string; text: string }[]
+  const text = mails.filter(m => m.to === email).at(-1)?.text ?? ""
+  const link = text.match(/https?:\/\/[^/\s]+(\/[\w-]+\?token=[\w-]+)/)
+  if (!link) throw new Error("Email untuk " + email + " tidak ditemukan")
+  return link[1]
+}
+
+// Guest baru: daftar, verifikasi email lewat link di email, lalu masuk.
 export async function newGuest(request: APIRequestContext, name: string) {
   const email = uniqueEmail()
-  const r = await call(request, "POST", "/api/auth/register", { body: { name, email, whatsapp: "081200000000", password: PASSWORD } })
+  await call(request, "POST", "/api/auth/register", { body: { name, email, whatsapp: "081200000000", password: PASSWORD } })
+  const token = new URLSearchParams((await mailLink(request, email)).split("?")[1]).get("token")
+  await call(request, "POST", "/api/auth/verify-email", { body: { token } })
+  const r = await call(request, "POST", "/api/auth/login", { body: { email, password: PASSWORD } })
   return { name, email, id: r.user.id as string, token: r.access_token as string }
 }
 

@@ -13,8 +13,8 @@ export interface InvoicePdf {
   client: { name: string; whatsapp: string; address: string; city: string }; project: { code: string; name: string }
   items: { type: string; description: string; unit: string | null; qty: number; days: number | null; unit_price: number; subtotal: number }[]
   totals: { parts: number; labor: number; services: number; accommodation: number; total: number }
+  preview?: boolean
 }
-const GROUPS = [["part", "Part", "parts"], ["sdm", "SDM", "labor"], ["jasa", "Jasa", "services"], ["akomodasi", "Akomodasi", "accommodation"]] as const
 
 function writer(doc: PDFDocument, font: PDFFont, bold: PDFFont) {
   let page: PDFPage = doc.addPage([595, 842]), y = 800
@@ -59,10 +59,11 @@ function writer(doc: PDFDocument, font: PDFFont, bold: PDFFont) {
 
 export async function invoicePdf(d: InvoicePdf) {
   const doc = await PDFDocument.create()
-  doc.setTitle(`Tagihan ${d.number}`)
+  doc.setTitle(d.preview ? "Pratinjau tagihan" : `Tagihan ${d.number}`)
   const w = writer(doc, await doc.embedFont(StandardFonts.Helvetica), await doc.embedFont(StandardFonts.HelveticaBold))
   // Kepala seperti contoh dari tim: judul INVOICE besar dan nomor di kanan. Nama usaha boleh kosong.
-  w.row([{ s: "INVOICE", x: 50, bold: true, size: 28 }, { s: `No: ${d.number}`, x: 545, right: true, bold: true, size: 11 }])
+  w.row([{ s: "INVOICE", x: 50, bold: true, size: 28 }, { s: d.preview ? "PRATINJAU" : `No: ${d.number}`, x: 545, right: true, bold: true, size: 11 }])
+  if (d.preview) w.text("Pratinjau, belum diterbitkan dan belum terlihat client. Nomor tagihan dibuat saat diterbitkan.", { bold: true, size: 10 })
   if (d.type === "tambahan") w.text("Tagihan tambahan", { bold: true, size: 11 })
   if (d.business_name) w.text(d.business_name, { size: 11 })
   w.gap(14)
@@ -73,16 +74,20 @@ export async function invoicePdf(d: InvoicePdf) {
     ...(left[i] ? [{ s: left[i][0], x: 50, bold: left[i][1], width: 250 }] : []),
     ...(right[i] ? [{ s: right[i][0], x: 320, bold: true, width: 110 }, { s: right[i][1], x: 545, right: true }] : [])], 10)
   w.gap(16)
-  for (const [type, label, key] of GROUPS) {
-    const items = d.items.filter(i => i.type === type)
-    if (!items.length) continue
-    w.text(label, { bold: true, size: 11 })
+  // Part ditulis rinci supaya transparan. SDM, jasa, dan akomodasi ditagih all in sebagai satu baris Biaya Jasa;
+  // rinciannya hanya ada di Planning untuk admin (keputusan tim 24 Nov 2026).
+  const parts = d.items.filter(i => i.type === "part")
+  if (parts.length) {
+    w.text("Part", { bold: true, size: 11 })
     w.row([{ s: "Uraian", x: 50, bold: true, width: 230 }, { s: "Jumlah", x: 290, bold: true, width: 110 }, { s: "Harga satuan", x: 470, right: true, bold: true }, { s: "Subtotal", x: 545, right: true, bold: true }])
-    for (const i of items) {
-      const qty = `${num(i.qty)}${i.unit ? " " + i.unit : type === "sdm" ? " orang" : ""}${i.days !== null ? ` x ${num(i.days)} hari` : ""}`
-      w.row([{ s: i.description, x: 50, width: 230 }, { s: qty, x: 290, width: 110 }, { s: rp(i.unit_price), x: 470, right: true }, { s: rp(i.subtotal), x: 545, right: true }])
-    }
-    w.row([{ s: `Total ${label}`, x: 50, bold: true }, { s: rp(d.totals[key]), x: 545, right: true, bold: true }])
+    for (const i of parts)
+      w.row([{ s: i.description, x: 50, width: 230 }, { s: `${num(i.qty)}${i.unit ? " " + i.unit : ""}`, x: 290, width: 110 }, { s: rp(i.unit_price), x: 470, right: true }, { s: rp(i.subtotal), x: 545, right: true }])
+    w.row([{ s: "Total Part", x: 50, bold: true }, { s: rp(d.totals.parts), x: 545, right: true, bold: true }])
+    w.gap(6)
+  }
+  const services = d.totals.labor + d.totals.services + d.totals.accommodation
+  if (services) {
+    w.row([{ s: "Biaya Jasa", x: 50, bold: true, size: 11 }, { s: rp(services), x: 545, right: true, bold: true, size: 11 }])
     w.gap(6)
   }
   w.line()

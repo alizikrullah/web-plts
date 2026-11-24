@@ -34,8 +34,8 @@ ids.kabel = (await insertPart(pool, readPart({ category: "aksesoris", name: "[CO
 
 const PASSWORD = "contoh12345"
 const person = async (name: string, email: string, role: string) => {
-  await pool.query(`insert into users (name, email, whatsapp, password_hash, role, became_client_at) values ($1, $2, '6281200000001', $3, $4::varchar,
-    case when $4::varchar = 'client' then now() end)`, [name, email, await hashPassword(PASSWORD), role])
+  await pool.query(`insert into users (name, email, whatsapp, password_hash, role, became_client_at, is_verified) values ($1, $2, '6281200000001', $3, $4::varchar,
+    case when $4::varchar = 'client' then now() end, true)`, [name, email, await hashPassword(PASSWORD), role])
   const s: any = {}
   await call("POST", "/api/auth/login", { as: s, body: { email, password: PASSWORD } })
   return s

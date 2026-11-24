@@ -21,8 +21,12 @@ Aturan umum:
 
 | Metode | Alamat | Akses | Guna |
 | --- | --- | --- | --- |
-| POST | `/api/auth/register` | Publik | Daftar: nama, email, WhatsApp, password. Selalu menjadi guest. |
-| POST | `/api/auth/login` | Publik | Masuk. Dibatasi 5 kali gagal per 15 menit per email. |
+| POST | `/api/auth/register` | Publik | Daftar: nama, email, WhatsApp, password. Selalu menjadi guest. Mengirim link verifikasi email; belum bisa masuk sebelum link diklik. |
+| POST | `/api/auth/verify-email` | Publik | Verifikasi email dengan token dari link (berlaku 24 jam, sekali pakai) |
+| POST | `/api/auth/resend-verification` | Publik | Kirim ulang link verifikasi, paling cepat sekali per menit. Jawaban selalu sama. |
+| POST | `/api/auth/forgot-password` | Publik | Kirim link reset password (berlaku 1 jam). Jawaban selalu sama. |
+| POST | `/api/auth/reset-password` | Publik | Simpan password baru dari link reset dan cabut semua sesi lama |
+| POST | `/api/auth/login` | Publik | Masuk. Dibatasi 5 kali gagal per 15 menit per email. Email yang belum diverifikasi ditolak. |
 | POST | `/api/auth/refresh` | Cookie | Minta access token baru |
 | POST | `/api/auth/logout` | Login | Keluar dan cabut refresh token |
 | GET | `/api/me` | Login | Data akun dan role terbaru dari database |
@@ -95,7 +99,8 @@ Hitungan memakai satu modul yang sama di frontend dan backend. Pengunjung menghi
 | POST | `/api/admin/projects/:id/planning/finalize` | Admin | Jadikan final dan isi tanggal harga berlaku |
 | POST | `/api/admin/projects/:id/planning/reopen` | Admin | Kembalikan ke draf selama tagihan belum terbit |
 | GET | `/api/admin/projects/:id/invoices` | Admin | Tagihan proyek dan pembayarannya |
-| POST | `/api/admin/projects/:id/invoices` | Admin | Terbitkan tagihan awal dari Planning final, dengan PDF |
+| GET | `/api/admin/projects/:id/invoices/preview` | Admin | Pratinjau PDF tagihan awal, persis seperti yang diterima client. Tidak menyimpan apa pun. |
+| POST | `/api/admin/projects/:id/invoices` | Admin | Terbitkan tagihan awal dari Planning final, dengan PDF (part rinci, sisanya satu baris Biaya Jasa) |
 | POST | `/api/admin/invoices/:id/cancel` | Admin | Batalkan tagihan yang belum dibayar |
 | POST | `/api/admin/invoices/:id/payments` | Admin | Catat pembayaran dengan bukti |
 | GET | `/api/admin/home/tagihan` | Admin | Ringkasan Tagihan dan Pembayaran per bulan |
@@ -113,6 +118,7 @@ Hitungan memakai satu modul yang sama di frontend dan backend. Pengunjung menghi
 | GET | `/api/admin/projects/:id/cost-adjustments` | Admin | Daftar Biaya Tambahan |
 | POST | `/api/admin/projects/:id/cost-adjustments` | Admin | Catat Biaya Tambahan |
 | PATCH | `/api/admin/cost-adjustments/:id` | Admin | Isi bukti setuju client |
+| GET | `/api/admin/projects/:id/invoices/tambahan/preview?ids=` | Admin | Pratinjau PDF tagihan tambahan untuk Biaya Tambahan terpilih (id dipisah koma). Tidak menyimpan apa pun. |
 | POST | `/api/admin/projects/:id/invoices/tambahan` | Admin | Buat tagihan tambahan dari Biaya Tambahan yang sudah disetujui |
 | POST | `/api/admin/projects/:id/refunds` | Admin | Catat pengembalian |
 

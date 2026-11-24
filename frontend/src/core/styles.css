@@ -458,3 +458,9 @@ table.recap th.num { text-align: right }
 @media (max-width: 600px) { .head h1, .page > h1 { font-size: 1.2rem } }
 @media (max-width: 640px) { .wide { display: none } .buy-cards { display: grid } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+
+/* Tombol mata di kolom password. Tombol bawaan Edge disembunyikan supaya tidak dobel. */
+.box .eye { flex: none; display: grid; place-items: center; width: 34px; height: 34px; margin-right: -6px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--muted) }
+.box .eye:hover { background: var(--hover); color: var(--fg) }
+.box .eye svg { width: 18px; height: 18px }
+input::-ms-reveal { display: none }

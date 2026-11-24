@@ -20,6 +20,7 @@ Variabel lingkungan:
 | `JWT_SECRET` | Teks acak yang panjang, berbeda dari yang dipakai saat pengembangan |
 | `FRONTEND_ORIGIN` | Alamat frontend, misalnya `https://app.domain.com` |
 | `GROQ_API_KEY`, `GROQ_MODEL` | Pembaca invoice pembelian. Kosong berarti draf diisi manual. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Email verifikasi daftar dan lupa password lewat Resend. Domain di `EMAIL_FROM` harus terverifikasi di Resend. Tanpa kunci, email tidak dikirim (hanya dicatat di log). |
 
 ## Frontend (Cloudflare Pages)
 
@@ -37,6 +38,6 @@ Alamat seperti `/akun` dilayani `index.html` otomatis, karena proyek tanpa `404.
 
 | Perintah | Isi |
 | --- | --- |
-| `npm test` di `backend` | 80 tes API, termasuk aturan data PRD bagian 18 |
+| `npm test` di `backend` | 88 tes API, termasuk aturan data PRD bagian 18 |
 | `npx vitest run` di `frontend` | Tes modul hitung dan aturan tanpa em dash |
 | `npm run e2e` di `frontend` | Tes lewat layar untuk semua skenario PRD bagian 13, memakai database `plts_e2e` yang dibangun ulang |

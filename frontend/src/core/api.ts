@@ -50,14 +50,16 @@ export async function fileBlob(path: string) {
   return res.blob()
 }
 // Tab baru dibuka lebih dulu supaya tidak diblokir browser, baru diisi setelah file selesai diambil.
-export async function openFile(path: string) {
+// Kesalahan dilempar, supaya pesannya bisa ditampilkan di dekat tombol (misalnya pratinjau tagihan).
+export async function showFile(path: string) {
   const w = window.open("", "_blank")
   try {
     const url = URL.createObjectURL(await fileBlob(path))
     if (w) w.location.href = url
     else location.assign(url)
-  } catch (e) { w?.close(); alert((e as Error).message) }
+  } catch (e) { w?.close(); throw e }
 }
+export const openFile = (path: string) => showFile(path).catch(e => alert((e as Error).message))
 export async function uploadFile(projectId: string, purpose: string, file: File) {
   const res = await fetch(`${BASE}/api/admin/projects/${projectId}/files?purpose=${purpose}`, { method: "POST", credentials: "include", body: file,
     headers: { "content-type": file.type || "application/octet-stream", "x-filename": encodeURIComponent(file.name), ...(token && { authorization: `Bearer ${token}` }) } })
