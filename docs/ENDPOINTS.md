@@ -41,7 +41,7 @@ Aturan umum:
 
 | Metode | Alamat | Akses | Guna |
 | --- | --- | --- | --- |
-| GET | `/api/parts` | Publik | Panel, inverter, dan baterai yang aktif. Hanya nama, kategori, harga satuan, dan angka teknis. |
+| GET | `/api/parts` | Publik | Panel, inverter, dan baterai yang aktif, ditambah aksesoris aktif yang punya aturan jumlah. Hanya nama, kategori, satuan, harga satuan, kelas paket, angka teknis, dan aturan jumlah aksesoris. |
 | GET | `/api/admin/parts` | Admin | Semua part dengan semua kolom, bisa difilter |
 | POST | `/api/admin/parts` | Admin | Tambah part |
 | PATCH | `/api/admin/parts/:id` | Admin | Ubah part, termasuk nonaktifkan. Ubah harga memperbarui tanggal harga. |
@@ -65,7 +65,7 @@ Hitungan memakai satu modul yang sama di frontend dan backend. Pengunjung menghi
 
 | Metode | Alamat | Akses | Guna |
 | --- | --- | --- | --- |
-| POST | `/api/simulations` | Guest/Client | Simpan simulasi. Backend menghitung ulang dan menyalin harga saat itu. |
+| POST | `/api/simulations` | Guest/Client | Simpan simulasi hybrid atau on-grid (`system_type`). Backend menghitung ulang dan menyalin harga, estimasi aksesoris, estimasi jasa, dan umur baterai saat itu. `package_tier` hanya tercatat kalau konfigurasinya persis paket itu. |
 | GET | `/api/simulations` | Guest/Client | Simulasi milik sendiri |
 | GET | `/api/simulations/:id` | Pemilik, Admin | Satu simulasi dengan hasilnya |
 
@@ -133,4 +133,5 @@ Menutup proyek memakai `POST /api/admin/projects/:id/status-updates` dengan stat
 | `npm run seed` | Data awal: nilai awal Pengaturan dan enam status bawaan |
 | `npm run seed:admin -- "Nama" email nomor-wa` | Admin pertama dengan password sementara |
 | `npm run import:parts -- data/parts-awal.json` | Impor data awal List Part |
+| `npm run import:parts -- data/parts-ongrid.json` | Impor data awal on-grid dari RAB tim (inverter, panel, dan aksesoris dengan aturan jumlah) |
 | `npm run seed:contoh` | Data contoh di database terpisah `plts_contoh` untuk tampilan frontend |

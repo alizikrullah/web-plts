@@ -176,7 +176,7 @@ a:hover { text-decoration-color: currentColor }
 .box.step svg { width: 18px; height: 18px }
 .box.info { background: transparent; border-style: dashed; font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums }
 
-.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; min-height: 46px; padding: 4px; background: var(--field); border: 1px solid var(--line); border-radius: 12px }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; min-height: 46px; padding: 4px; background: var(--field); border: 1px solid var(--line); border-radius: 12px }
 .seg button { border: 0; border-radius: 8px; background: none; color: var(--muted); font-size: .9rem; font-weight: 600 }
 .seg button:hover { color: var(--fg) }
 .seg button[aria-pressed="true"] { background: var(--raised); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / 12%), inset 0 0 0 1px var(--line) }
@@ -315,6 +315,7 @@ table.recap th.num { text-align: right }
 .part-sub .box { flex: none; min-height: 34px; padding-inline: 10px; border-radius: 8px }
 .part-sub .box select { padding: 5px 0; font-size: .88rem; font-weight: 600 }
 .part-meta { color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums }
+.part-name { margin: 0; overflow-wrap: anywhere }
 .part-why { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: .8rem }
 .part-why svg { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--good) }
 .part-why.warn svg { color: var(--warn) }

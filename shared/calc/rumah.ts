@@ -1,6 +1,8 @@
 // Rumus simulasi PLTS rumah (hybrid off-grid), dipindah apa adanya dari frontend/legacy/simulator-plts-2.html.
 // Dipakai bersama oleh frontend dan backend (PRD bagian 6), supaya hasil di layar sama dengan yang disimpan.
 // frontend/src/calc/rumah.test.ts memastikan hasilnya tetap sama persis dengan versi lama.
+// Tambahan 25 Nov 2026 (PRD 6.1): cek string memakai batas MPPT dan arus dari List Part, plus saran khusus on-grid.
+// Tanpa isian tambahan itu, hasil dan saran sama persis dengan simulator HTML lama.
 import { bepTxt, fmtNum, n1, rpS } from "../format"
 
 export type Mode = "SBU" | "SOL"
@@ -11,6 +13,8 @@ export interface Params {
   pvMax: number; vocMax: number; invRated: number; invEff: number; ah: number; bv: number; dod: number; mode: Mode; unlock: number
   pDay: number; pNight: number; hStart: number; hEnd: number
   cPanel: number; cInv: number; cBat: number; cEtc: number; yInv: number; yBat: number; years: number
+  // Boleh kosong: batas MPPT inverter (bawaan 30 sampai 170 V seperti HTML lama), Isc panel, arus input maksimal inverter, dan penanda on-grid.
+  mpptMin?: number; mpptMax?: number; isc?: number; iMax?: number; onGrid?: boolean
 }
 
 export const DEF: Params = {
@@ -123,13 +127,27 @@ export function advice(p: Params, rows: Row[]) {
   const vocStr = p.seri * p.voc, vocCold = vocStr * 1.05, vmpStr = p.seri * p.vmp
   if (vocCold > p.vocMax) add("bad", `Voc string ${n1(vocStr)} V (±${n1(vocCold)} V saat dingin) melebihi batas ${fmtNum(p.vocMax)} V. Kurangi panel seri menjadi maksimal ${Math.floor(p.vocMax / (p.voc * 1.05))}.`)
   else add("ok", `Voc string ${n1(vocStr)} V, masih di bawah batas ${fmtNum(p.vocMax)} V. Vmp kerja sekitar ${n1(vmpStr)} V.`)
-  if (vmpStr * 0.88 < 30) add("warn", `Vmp string saat panas bisa turun ke ±${n1(vmpStr * 0.88)} V, mendekati batas bawah MPPT 30 V. Tambah panel seri.`)
-  if (vmpStr > 170) add("warn", `Vmp ${n1(vmpStr)} V di atas rentang optimal MPPT (30-170 V). Efisiensi bisa turun.`)
+  const lo = p.mpptMin ?? 30, hi = p.mpptMax ?? 170
+  if (vmpStr * 0.88 < lo) add("warn", `Vmp string saat panas bisa turun ke ±${n1(vmpStr * 0.88)} V, mendekati batas bawah MPPT ${fmtNum(lo)} V. Tambah panel seri.`)
+  if (vmpStr > hi) add("warn", `Vmp ${n1(vmpStr)} V di atas rentang optimal MPPT (${fmtNum(lo)}-${fmtNum(hi)} V). Efisiensi bisa turun.`)
+  // Arus: 1 string di atas batas hanya clipping, beberapa string paralel di atas batas berbahaya (PRD 6.1).
+  if (p.isc && p.iMax && p.isc * p.paralel > p.iMax) add(p.paralel > 1 ? "bad" : "warn", p.paralel > 1
+    ? `Arus ${p.paralel} string paralel ±${n1(p.isc * p.paralel)} A melebihi arus input inverter ${fmtNum(p.iMax)} A. Kurangi string paralel.`
+    : `Isc panel ${n1(p.isc)} A di atas arus input inverter ${fmtNum(p.iMax)} A. Ada sedikit clipping saat terik, masih aman.`)
+  if (p.onGrid) {
+    const ratio = sim.wpTot / p.invRated
+    if (ratio < 1.1) add("warn", `Rasio panel terhadap inverter ${n1(ratio, 2)}. Inverter belum terpakai penuh, idealnya 1,1 sampai 1,4.`)
+    else if (ratio > 1.4) add("warn", `Rasio panel terhadap inverter ${n1(ratio, 2)}, di atas 1,4. Akan ada clipping saat terik.`)
+  }
   if (sim.wpTot > p.pvMax) add("warn", `Total PV ${n1(sim.wpTot, 0)} Wp di atas batas inverter ${fmtNum(p.pvMax)} W. Sekitar ${n1(sim.clip)} kWh/hari terpotong (clipping).`)
-  if (Math.max(p.pDay, p.pNight) * 1000 > p.invRated * 0.8) add("warn", `Beban ${n1(Math.max(p.pDay, p.pNight))} kW sudah di atas 80% kapasitas inverter ${fmtNum(p.invRated)} W. Beri ruang untuk lonjakan motor (pompa, kulkas, AC).`)
+  // On-grid: beban rumah tetap disuplai PLN, jadi batas beban inverter tidak berlaku.
+  if (!p.onGrid && Math.max(p.pDay, p.pNight) * 1000 > p.invRated * 0.8) add("warn", `Beban ${n1(Math.max(p.pDay, p.pNight))} kW sudah di atas 80% kapasitas inverter ${fmtNum(p.invRated)} W. Beri ruang untuk lonjakan motor (pompa, kulkas, AC).`)
   const wasteTot = sim.waste + sim.clip
-  if (wasteTot > 0.1 * sim.dcDay) add("tip", `${n1(wasteTot)} kWh PV per hari terbuang. Geser pemakaian ke jam 10-14 (cuci, setrika, pompa air, AC) atau tambah kapasitas baterai.`)
-  if (sim.grid > 0.4 * sim.loadE && sim.wpTot < p.pvMax) add("tip", `${n1(sim.grid / sim.loadE * 100, 0)}% beban masih dari PLN. Menambah panel sampai ±${fmtNum(p.pvMax)} Wp masih bisa terpakai dan inverter sanggup.`)
+  if (wasteTot > 0.1 * sim.dcDay) add("tip", p.onGrid
+    ? `${n1(wasteTot)} kWh PV per hari terbuang, karena kelebihan listrik on-grid tidak mengurangi tagihan. Geser pemakaian ke jam 10-14 (cuci, setrika, pompa air, AC).`
+    : `${n1(wasteTot)} kWh PV per hari terbuang. Geser pemakaian ke jam 10-14 (cuci, setrika, pompa air, AC) atau tambah kapasitas baterai.`)
+  // On-grid: pemakaian malam selalu dari PLN, jadi menambah panel tidak menolongnya.
+  if (!p.onGrid && sim.grid > 0.4 * sim.loadE && sim.wpTot < p.pvMax) add("tip", `${n1(sim.grid / sim.loadE * 100, 0)}% beban masih dari PLN. Menambah panel sampai ±${fmtNum(p.pvMax)} Wp masih bisa terpakai dan inverter sanggup.`)
   if (p.ah > 0) {
     const cyc = sim.charged / Math.max(0.01, sim.cap)
     if (cyc < 0.3) add("tip", `Baterai hanya terisi ±${n1(cyc * 100, 0)}% kapasitas per hari dari PV. Untuk pola beban ini baterai lebih berfungsi sebagai cadangan saat PLN padam. Bandingkan dengan opsi "Tanpa baterai" di bagian Opsi.`)
@@ -140,7 +158,7 @@ export function advice(p: Params, rows: Row[]) {
   if (fin.bep === null) add("bad", `Tidak balik modal dalam ${fmtNum(p.years)} tahun. Kurangi biaya, tambah panel, atau naikkan beban siang yang dilayani inverter.`)
   else if (fin.bep > 10) add("warn", `BEP ${bepTxt(fin.bep)}, cukup lama untuk inverter murah (umur 5-10 th). Pastikan garansi dan pertimbangkan biaya penggantian.`)
   else add("ok", `BEP ${bepTxt(fin.bep)} dengan untung bersih ${rpS(fin.net)} selama ${fmtNum(p.years)} tahun.`)
-  if (p.tagihan > 0) add("tip", `Penghematan ${rpS(fin.month)}/bulan = ${n1(fin.month / p.tagihan * 100, 1)}% dari tagihan ${rpS(p.tagihan)}. Hanya beban yang disambung ke AC OUT yang ikut hemat.`)
+  if (p.tagihan > 0) add("tip", `Penghematan ${rpS(fin.month)}/bulan = ${n1(fin.month / p.tagihan * 100, 1)}% dari tagihan ${rpS(p.tagihan)}.${p.onGrid ? "" : " Hanya beban yang disambung ke AC OUT yang ikut hemat."}`)
   add("tip", "Hadapkan panel ke utara dengan kemiringan 10-15° dan bersihkan permukaan tiap 1-2 bulan. Debu dan bayangan kecil bisa memangkas produksi 10-25%.")
   add("tip", "Gunakan setting tipe baterai USER: tegangan boost 28,4 V, float 27,0 V, putus 22,4 V untuk LiFePO4 8S, dan cek tegangan per sel di aplikasi BMS.")
   return A

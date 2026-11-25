@@ -32,10 +32,16 @@ export const SETTINGS = {
   day_hours: { value: { start: 8, end: 16 }, check: (x: unknown) => obj(["start", "end"], int(0, 24))(x) && (x as any).start < (x as any).end, public: true },
   analysis_years: { value: 25, check: int(1, 50), public: true },
   inverter_replace_year: { value: 10, check: int(0, 50), public: true },
-  battery_replace_year: { value: 0, check: int(0, 50), public: true }, // 0 = tidak dihitung
+  // Umur baterai dihitung dari jumlah siklus dan dibatasi angka ini (PRD 6.3). Nilai awal dari riset 25 Nov 2026.
+  battery_max_life_years: { value: 10, check: int(1, 50), public: true },
   day_share_pct: { value: { sepi_siang: 25, seimbang: 40, ramai_siang: 55 }, check: obj(["sepi_siang", "seimbang", "ramai_siang"], num(0, 100)), public: true },
+  // Target kapasitas panel paket = daya PLN × faktor ini (PRD 6.2).
+  panel_wp_per_va: { value: 1, check: num(0.1, 10), public: true },
+  // Cadangan selama belum ada aksesoris dengan aturan jumlah (PRD 6.3).
   accessories_estimate_pct: { value: 20, check: num(0, 100), public: true },
-  installation_estimate: { value: null, check: orNull(int(0)), public: true },
+  // Estimasi jasa = jasa dasar + jasa per kWp, dari contoh tim: 1 kWp Rp3 juta, 2 kWp Rp5 juta (PRD 6.3).
+  service_base: { value: 1000000, check: int(0), public: true },
+  service_per_kwp: { value: 2000000, check: int(0), public: true },
   price_validity_days: { value: 7, check: int(1, 365), public: false },
   invoice_due_days: { value: 7, check: int(1, 365), public: false },
   labor_rate_per_day: { value: null, check: orNull(int(0)), public: false },

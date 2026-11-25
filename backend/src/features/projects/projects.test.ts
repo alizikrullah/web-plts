@@ -122,15 +122,32 @@ describe("B5 pengajuan dan proyek", () => {
     expect((await call("POST", `/api/admin/projects/${p.id}/accept`, { as: admin })).status).toBe(409)
   })
 
-  it("menerima pengajuan mengisi Planning dari simulasi dengan harga List Part saat ini", async () => {
+  it("menerima pengajuan mengisi Planning dari simulasi dengan harga List Part saat ini, termasuk aksesoris dan baris jasa", async () => {
+    await pool.query("update parts set unit_price = 28000 where id = $1", [ids.kabelPv]) // harga List Part saat Planning dibuat yang dipakai
     const { project, sim } = await acceptedClient()
+    await pool.query("update parts set unit_price = 27000 where id = $1", [ids.kabelPv])
     const items = (await pool.query("select i.* from planning_items i join plannings p on p.id = i.planning_id where p.project_id = $1 order by sort_order", [project.id])).rows
-    expect(items.map(i => [i.description, i.qty, i.unit_price])).toEqual([["Panel 550 Wp", 4, 1700000], ["Inverter 3000 W 24 V", 1, 6080000], ["LiFePO4 24 V 100 Ah", 1, 12000000]])
+    expect(items.map(i => [i.type, i.description, i.qty, i.unit_price])).toEqual([["part", "Panel 550 Wp", 4, 1700000], ["part", "Inverter 3000 W 24 V", 1, 6080000],
+      ["part", "LiFePO4 24 V 100 Ah", 1, 12000000], ["part", "Kabel PV 4 mm", 30, 28000], ["part", "Rail aluminium", 6, 60000],
+      ["jasa", "Jasa (estimasi dari simulasi)", 1, 5400000]])
+    const parts = 4 * 1700000 + 6080000 + 12000000 + 30 * 28000 + 6 * 60000
     const pl = (await one(pool, "select * from plannings where project_id = $1", [project.id]))!
-    expect(pl).toMatchObject({ status: "draf", total_parts: 4 * 1700000 + 6080000 + 12000000, grand_total: 4 * 1700000 + 6080000 + 12000000 })
+    expect(pl).toMatchObject({ status: "draf", total_parts: parts, total_services: 5400000, grand_total: parts + 5400000 })
     const detail = (await call("GET", `/api/admin/projects/${project.id}`, { as: admin })).json
     expect(detail.simulation.id).toBe(sim.id)
     expect(detail.project.pic.name).toMatch(/admin/)
+  })
+
+  it("skenario 26: pengajuan on-grid 4 panel 550 Wp diterima, Planning terisi part, aksesoris, dan satu baris jasa Rp5.400.000", async () => {
+    const g = await userSession(call, "guest")
+    const sim = await saveSim(g, { system_type: "on_grid", inverter_part_id: ids.invOnGrid2000, battery_part_id: null, battery_qty: 0 })
+    expect(sim.snapshot.service_estimate).toBe(5400000) // Rp1.000.000 + Rp2.000.000 x 2,2 kWp
+    const p = (await submit(g, sim.id)).json.project
+    expect((await call("POST", `/api/admin/projects/${p.id}/accept`, { as: admin })).status).toBe(200)
+    const items = (await pool.query("select i.* from planning_items i join plannings p on p.id = i.planning_id where p.project_id = $1 order by sort_order", [p.id])).rows
+    expect(items.map(i => [i.type, i.description, i.qty])).toEqual([["part", "Panel 550 Wp", 4], ["part", "Inverter on-grid 2000 W", 1],
+      ["part", "Kabel PV 4 mm", 30], ["part", "Pembatas ekspor", 1], ["part", "Rail aluminium", 6], ["jasa", "Jasa (estimasi dari simulasi)", 1]])
+    expect(items.at(-1)!.unit_price).toBe(5400000)
   })
 
   it("admin membuat client dan proyek langsung di Planning dengan password sementara", async () => {

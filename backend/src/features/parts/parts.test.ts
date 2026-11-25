@@ -81,6 +81,30 @@ describe("B3 List Part", () => {
     expect(og.battery_system_v).toBeNull()
   })
 
+  it("tahap lanjutan: kelas paket, Isc, arus input, jumlah siklus, dan aturan jumlah aksesoris (PRD 11.1)", async () => {
+    const bad = (p: Record<string, unknown>) => call("POST", "/api/admin/parts", { as: admin, body: p }).then(r => r.status)
+    const panel = await addPart({ ...PANEL, name: "Panel kelas", package_tier: "premium", isc: 13.9 })
+    expect(panel).toMatchObject({ package_tier: "premium", isc: 13.9 })
+    expect((await addPart({ ...INVERTER, name: "Inverter arus", pv_current_max: 18 })).pv_current_max).toBe(18)
+    expect((await addPart({ ...BATERAI, name: "Baterai siklus", cycle_life: 6000 })).cycle_life).toBe(6000)
+    expect(await bad({ ...PANEL, package_tier: "mewah" })).toBe(400)
+    expect(await bad({ ...BATERAI, cycle_life: 0 })).toBe(400)
+    expect(await bad({ ...AKSESORIS, qty_basis: "per_panel" })).toBe(400) // jumlah per dasar wajib kalau dasar diisi
+    // aksesoris dengan aturan jumlah ikut terkirim ke Simulator; kelas paket tidak berlaku untuk aksesoris
+    const rail = await addPart({ ...AKSESORIS, name: "Rail uji", unit: "meter", system_type: "on_grid", qty_basis: "per_panel", qty_per_basis: 1.4, package_tier: "hemat" })
+    expect(rail).toMatchObject({ system_type: "on_grid", qty_basis: "per_panel", qty_per_basis: 1.4, package_tier: null })
+    const pub = (await call("GET", "/api/parts")).json.parts
+    expect(pub.find((p: any) => p.id === rail.id)).toMatchObject({ unit: "meter", qty_basis: "per_panel", qty_per_basis: 1.4 })
+    expect(pub.find((p: any) => p.id === panel.id)).toMatchObject({ package_tier: "premium", isc: 13.9 })
+    // aturan jumlah bisa dihapus lagi: aksesoris kembali hanya untuk Planning
+    const off = await call("PATCH", `/api/admin/parts/${rail.id}`, { as: admin, body: { qty_basis: null, system_type: null } })
+    expect(off.json.part).toMatchObject({ qty_basis: null, qty_per_basis: null, system_type: null })
+    expect((await call("GET", "/api/parts")).json.parts.map((p: any) => p.id)).not.toContain(rail.id)
+    // database ikut menjaga: kolom tambahan tidak boleh diisi untuk kategori lain
+    await expect(pool.query("update parts set cycle_life = 100 where id = $1", [panel.id])).rejects.toThrow(/parts_kolom_tambahan/)
+    await expect(pool.query("update parts set system_type = 'on_grid' where id = $1", [panel.id])).rejects.toThrow(/parts_jenis_sistem/)
+  })
+
   it("mengubah harga memperbarui tanggal harga, kategori tidak bisa diganti", async () => {
     const p = await addPart({ ...PANEL, name: "Panel harga" })
     await pool.query("update parts set price_updated_at = now() - interval '40 days' where id = $1", [p.id])

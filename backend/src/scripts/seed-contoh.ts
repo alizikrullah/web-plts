@@ -25,11 +25,12 @@ await set("business_name", "[CONTOH] Usaha PLTS")
 await set("whatsapp_number", "6281200000000")
 await set("payment_instructions", "[CONTOH] Transfer ke rekening usaha")
 await set("service_area_text", "[CONTOH] Bandung dan sekitarnya")
-await set("installation_estimate", 2500000)
 await set("labor_rate_per_day", 150000)
 await pool.query("insert into faqs (question, answer, sort_order) values ('[CONTOH] Berapa lama pemasangan?', '[CONTOH] Jawaban ditulis tim.', 1)")
 const ids: Record<string, string> = {}
-for (const p of JSON.parse(readFileSync("data/parts-awal.json", "utf8"))) ids[p.category] = (await insertPart(pool, readPart(p)))!.id
+// Part awal dan data awal on-grid dari RAB tim, semuanya diberi kelas Standar supaya paket contoh tampil (PRD 6.2).
+for (const p of JSON.parse(readFileSync("data/parts-awal.json", "utf8"))) ids[p.category] = (await insertPart(pool, readPart({ ...p, package_tier: "standar" })))!.id
+for (const p of JSON.parse(readFileSync("data/parts-ongrid.json", "utf8"))) await insertPart(pool, readPart(p.category === "aksesoris" ? p : { ...p, package_tier: "standar" }))
 ids.kabel = (await insertPart(pool, readPart({ category: "aksesoris", name: "[CONTOH] Kabel PV 10 mm", unit: "meter", unit_price: 15000 })))!.id
 
 const PASSWORD = "contoh12345"

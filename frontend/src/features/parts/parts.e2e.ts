@@ -37,6 +37,7 @@ test("skenario 6: part dinonaktifkan dari List Part hilang dari pilihan Simulato
   // Hilang dari pilihan Simulator, simulasi lama tetap utuh.
   const visitor = await (await browser.newContext({ baseURL: "http://localhost:5174" })).newPage()
   await visitor.goto("/simulator")
+  await visitor.getByRole("button", { name: "Atur sendiri" }).click()
   await expect(visitor.getByLabel("Panel", { exact: true })).toBeVisible()
   await expect(visitor.getByLabel("Panel", { exact: true }).locator("option", { hasText: "Panel Uji 500 Wp" })).toHaveCount(0)
   await loginUi(visitor, guest.email)
@@ -79,4 +80,32 @@ test("skenario 5: harga part diubah setelah simulasi diajukan, angka di simulasi
   await expect(g.getByText("Simulasi ini sudah diajukan.")).toBeVisible()
   await expect(g.locator("dl.sum")).toContainText(`Rp${sim.est_investment.toLocaleString("id-ID")}`)
   await expect(g.locator("dl.sum")).toContainText(`Rp${sim.monthly_saving.toLocaleString("id-ID")}`)
+})
+
+test("tahap lanjutan: admin mengisi kelas paket, Isc, dan aturan jumlah aksesoris dari List Part", async ({ page, request }) => {
+  await loginUi(page, "admin@e2e.test")
+  await page.goto("/list-part")
+  await page.getByRole("button", { name: "Tambah part" }).click()
+  await page.getByLabel("Kategori", { exact: true }).selectOption("aksesoris")
+  await page.getByLabel("Nama", { exact: true }).fill("Klem Uji")
+  await page.getByLabel("Satuan", { exact: true }).fill("pcs")
+  await page.getByLabel("Harga satuan").fill("12000")
+  await page.getByLabel("Dipakai di estimasi Simulator").selectOption("per_panel")
+  await page.getByLabel("Jumlah per panel").fill("2")
+  await page.getByLabel("Jenis sistem").selectOption("on_grid")
+  await page.getByRole("button", { name: "Simpan" }).click()
+  await expect(page.locator("tr", { hasText: "Klem Uji" })).toContainText("Simulator: 2 per panel, on-grid")
+
+  await page.locator("tr", { hasText: "Panel 450 Wp" }).getByRole("button", { name: "Ubah" }).click()
+  await page.getByLabel("Isc (A)").fill("11.5")
+  await page.getByLabel("Kelas paket").selectOption("hemat")
+  await page.getByRole("button", { name: "Simpan" }).click()
+  await expect(page.locator("tr", { hasText: "Panel 450 Wp" })).toContainText("Panel · Hemat")
+
+  const parts = (await call(request, "GET", "/api/parts")).parts as { name: string; [k: string]: unknown }[]
+  expect(parts.find(p => p.name === "Klem Uji")).toMatchObject({ qty_basis: "per_panel", qty_per_basis: 2, system_type: "on_grid" })
+  expect(parts.find(p => p.name === "Panel 450 Wp")).toMatchObject({ isc: 11.5, package_tier: "hemat" })
+  // kembalikan supaya tes lain memakai data awal
+  const token = await adminToken(request)
+  await call(request, "PATCH", `/api/admin/parts/${parts.find(p => p.name === "Panel 450 Wp")!.id}`, { token, body: { package_tier: null, isc: null } })
 })

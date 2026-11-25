@@ -36,7 +36,9 @@ test("admin meninjau pengajuan: tolak wajib dengan alasan, terima menjadikan gue
   await page.getByRole("button", { name: "Terima pengajuan" }).click()
   await expect(page.locator(".head .sub b")).toHaveText("Planning")
   await page.getByRole("button", { name: "Planning", exact: true }).click()
-  await expect(page.getByRole("region", { name: "Part" }).locator("tbody tr")).toHaveCount(3)
+  // Panel, inverter, baterai, dan aksesoris dari simulasi, ditambah satu baris jasa (PRD 7.4).
+  await expect(page.getByRole("region", { name: "Part" }).locator("tbody tr")).toHaveCount(5)
+  await expect(page.getByRole("region", { name: "Jasa" }).getByLabel("Uraian")).toHaveValue("Jasa (estimasi dari simulasi)")
 })
 
 test("skenario 1: client A tidak bisa membuka data, tagihan, atau simulasi proyek client B dengan mengganti alamat", async ({ page, request }) => {

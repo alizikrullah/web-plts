@@ -1,47 +1,55 @@
 import { useMemo, useState } from "react"
 import { DEF, type Params } from "../../../../shared/calc/rumah"
-import { evaluate, investment, toParams, type Battery, type Inverter, type Panel } from "../../../../shared/calc/simulator"
+import { arrangement, evaluate, toParams, type Config } from "../../../../shared/calc/simulator"
 import { fmtNum, parseNum } from "../../../../shared/format"
 import { Inputs, Group, type Form } from "./Inputs"
 import { AdviceCard, CashCard, DayCard, FlowCard, Options } from "./Results"
-import { batteriesFor, hybridInverters, recommended, toConfig, type SimData } from "./simple"
+import { batteriesFor, choosePackage, packagesFor, toConfig, type Base, type SimData } from "./simple"
 import { Select, SimShell } from "./SimulatorPage"
 
 const keys = Object.keys(DEF) as (keyof Params)[]
-const toForm = (p: Partial<Params>) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, k === "mode" ? v : fmtNum(v as number)])) as Partial<Form>
+const toForm = (p: Partial<Params>) => Object.fromEntries(keys.filter(k => k in p).map(k => [k, k === "mode" ? p[k] : fmtNum(p[k] as number)])) as Partial<Form>
 function toParamsOf(f: Form) {
   const p = Object.fromEntries(keys.map(k => [k, k === "mode" ? f.mode : parseNum(f[k])])) as unknown as Params
   p.seri = Math.max(1, Math.round(p.seri)); p.paralel = Math.max(1, Math.round(p.paralel))
   return p
 }
-
-// Angka teknis, harga, dan tarif yang terisi otomatis dari part terpilih (PRD 6.1: bisa ditimpa admin).
-function partFields(panel: Panel, inv: Inverter, bat: Battery | null, batQty: number, tarif: number): Partial<Params> {
-  return { wp: panel.wp, voc: panel.voc, vmp: panel.vmp, cPanel: panel.unit_price, pvMax: inv.pv_max_w, vocMax: inv.pv_voc_max,
-    invRated: inv.rated_w, invEff: inv.efficiency_pct, cInv: inv.unit_price, ah: bat ? bat.capacity_ah * batQty : 0, bv: bat?.voltage_v ?? 0,
-    dod: bat?.dod_pct ?? 0, cBat: bat ? bat.unit_price * batQty : 0, tarif }
-}
+// Angka dari part yang tidak ada di isian simulator HTML: batas MPPT, arus, dan penanda on-grid (PRD 6.1).
+const extraOf = (p: Params): Partial<Params> => ({ mpptMin: p.mpptMin, mpptMax: p.mpptMax, isc: p.isc, iMax: p.iMax, onGrid: p.onGrid })
+// Isian yang terisi otomatis dari part terpilih (PRD 6.1: bisa ditimpa admin), termasuk aksesoris, jasa, dan umur baterai (PRD 6.3).
+const FROM_PARTS: (keyof Params)[] = ["wp", "voc", "vmp", "cPanel", "pvMax", "vocMax", "invRated", "invEff", "cInv", "ah", "bv", "dod", "cBat", "tarif", "cEtc", "yBat"]
+const pickParts = (p: Params) => Object.fromEntries(FROM_PARTS.map(k => [k, p[k]])) as Partial<Params>
 
 // Mode lengkap untuk admin (PRD 6.1): semua isian simulator HTML, part dari List Part, dan nilai bawaan yang bisa diubah.
 export default function FullSimulator({ d }: { d: SimData }) {
-  const start = recommended(d, { type: "hybrid", pln: 2200, bill: 1_000_000, pattern: "seimbang" })
-  const [sel, setSel] = useState({ pln: 2200, panelId: start?.panelId ?? "", inverterId: start?.inverterId ?? "", batteryId: start?.batteryId ?? "", batteryQty: start?.batteryQty || 1 })
-  const [form, setForm] = useState<Form>(() => ({ ...toForm(DEF), ...(start ? toForm(toParams(toConfig(d, start)!, d.s)) : {}) }) as Form)
-  const p = useMemo(() => toParamsOf(form), [form])
+  const base: Base = { type: "hybrid", pln: 2200, bill: 1_000_000, pattern: "seimbang" }
+  const start = choosePackage(packagesFor(d, base), base, "standar")
+  const startConfig = start && toConfig(d, start)
+  const [sel, setSel] = useState({ pln: 2200, panelId: start?.panelId ?? d.parts.panels[0]?.id ?? "", inverterId: start?.inverterId ?? d.parts.inverters[0]?.id ?? "",
+    batteryId: start?.batteryId ?? "", batteryQty: start?.batteryQty || 1 })
+  const [form, setForm] = useState<Form>(() => ({ ...toForm(DEF), ...(startConfig ? toForm(toParams(startConfig, d.s)) : {}) }) as Form)
+  const [extra, setExtra] = useState<Partial<Params>>(() => (startConfig ? extraOf(toParams(startConfig, d.s)) : {}))
+  const p = useMemo(() => ({ ...extra, ...toParamsOf(form) }), [form, extra])
   const e = useMemo(() => evaluate(p), [p])
 
-  const panel = d.parts.panels.find(x => x.id === sel.panelId), inverter = d.parts.inverters.find(x => x.id === sel.inverterId)
-  const bats = batteriesFor(d, inverter), battery = bats.find(b => b.id === sel.batteryId) ?? null
+  const inverter = d.parts.inverters.find(x => x.id === sel.inverterId)
+  const bats = batteriesFor(d, inverter)
+  const [etc, setEtc] = useState(() => (startConfig ? toParams(startConfig, d.s).cEtc : 0))
   function choose(patch: Partial<typeof sel>) {
     const next = { ...sel, ...patch }
     const pa = d.parts.panels.find(x => x.id === next.panelId), inv = d.parts.inverters.find(x => x.id === next.inverterId)
     if (!pa || !inv) return setSel(next)
     const bat = batteriesFor(d, inv).find(b => b.id === next.batteryId) ?? null
     setSel({ ...next, batteryId: bat?.id ?? "" })
-    const etc = investment(pa, p.seri * p.paralel, inv, bat, next.batteryQty, d.s)
-    setForm(f => ({ ...f, ...toForm({ ...partFields(pa, inv, bat, next.batteryQty, d.s.tariff_per_va[String(next.pln)]), cEtc: etc.accessories + etc.installation }) }))
+    // Susunan seri dan paralel dari isian tetap dipakai; kalau tidak valid untuk part baru, dihitung ulang dari jumlah panelnya.
+    const qty = p.seri * p.paralel, a = arrangement(pa, inv, qty)
+    const c: Config = { pln_power_va: next.pln, monthly_bill: p.tagihan, usage_pattern: "seimbang", panel: pa, panel_qty: qty,
+      panel_series: a?.series ?? p.seri, panel_parallel: a?.parallel ?? p.paralel, inverter: inv, battery: bat, battery_qty: bat ? next.batteryQty : 0,
+      accessories: d.parts.accessories }
+    const q = toParams(c, d.s)
+    setForm(f => ({ ...f, ...toForm(pickParts(q)) }))
+    setExtra(extraOf(q)); setEtc(q.cEtc)
   }
-  const inv = panel && inverter ? investment(panel, p.seri * p.paralel, inverter, battery, sel.batteryQty, d.s) : null
 
   const input = (
     <>
@@ -49,13 +57,14 @@ export default function FullSimulator({ d }: { d: SimData }) {
         <Select label="Daya PLN" value={String(sel.pln)} onChange={v => choose({ pln: Number(v) })}
           options={Object.keys(d.s.tariff_per_va).sort((a, b) => +a - +b).map(v => ({ value: v, label: `${fmtNum(+v)} VA (tarif per kWh)` }))} />
         <Select label="Panel" value={sel.panelId} onChange={v => choose({ panelId: v })} options={d.parts.panels.map(x => ({ value: x.id, label: x.name }))} />
-        <Select label="Inverter" value={sel.inverterId} onChange={v => choose({ inverterId: v })} options={hybridInverters(d).map(x => ({ value: x.id, label: x.name }))} />
-        <Select label="Baterai" value={sel.batteryId} onChange={v => choose({ batteryId: v })}
-          options={[...bats.map(b => ({ value: b.id, label: b.name })), { value: "", label: "Tanpa baterai" }]} />
-        {sel.batteryId && <Select label="Jumlah baterai" value={String(sel.batteryQty)} onChange={v => choose({ batteryQty: Number(v) })}
+        <Select label="Inverter" value={sel.inverterId} onChange={v => choose({ inverterId: v })}
+          options={d.parts.inverters.map(x => ({ value: x.id, label: x.system_type === "on_grid" ? `${x.name} (on-grid)` : x.name }))} />
+        {inverter?.system_type !== "on_grid" && <Select label="Baterai" value={sel.batteryId} onChange={v => choose({ batteryId: v })}
+          options={[...bats.map(b => ({ value: b.id, label: b.name })), { value: "", label: "Tanpa baterai" }]} />}
+        {sel.batteryId && inverter?.system_type !== "on_grid" && <Select label="Jumlah baterai" value={String(sel.batteryQty)} onChange={v => choose({ batteryQty: Number(v) })}
           options={[1, 2, 3, 4].map(n => ({ value: String(n), label: `${n} unit` }))} />}
-        {inv && <p className="hint field full">Estimasi aksesoris {fmtNum(d.s.accessories_estimate_pct)}% dan jasa instalasi dari Pengaturan: Rp{fmtNum(inv.accessories + inv.installation)}
-          (isian "Instalasi & lain-lain"). Hasil mode lengkap tidak disimpan.</p>}
+        <p className="hint field full">Estimasi aksesoris dan jasa dari List Part dan Pengaturan: Rp{fmtNum(etc)} (isian "Instalasi & lain-lain"). Tahun ganti baterai
+          dihitung dari jumlah siklus baterai. Hasil mode lengkap tidak disimpan.</p>
       </Group>
       <Inputs form={form} set={(k, v) => setForm(f => ({ ...f, [k]: v }))} p={p} sim={e.sim} inv={e.result.est_investment} />
     </>

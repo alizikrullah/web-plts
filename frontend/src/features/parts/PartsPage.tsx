@@ -8,7 +8,8 @@ type Category = "panel" | "inverter" | "baterai" | "aksesoris"
 interface Part { id: string; category: Category; name: string; unit: string; unit_price: number; store_name: string | null; buy_url: string | null; notes: string | null
   is_active: boolean; price_updated_at: string; [k: string]: unknown }
 const CATEGORY: Record<Category, string> = { panel: "Panel", inverter: "Inverter", baterai: "Baterai", aksesoris: "Aksesoris" }
-// Kolom teknis per kategori (PRD 11.1). Wajib untuk Panel, Inverter, dan Baterai karena Simulator menghitung dari angka itu.
+// Kolom teknis per kategori (PRD 11.1). Wajib untuk Panel, Inverter, dan Baterai karena Simulator menghitung dari angka itu,
+// kecuali yang ditandai boleh kosong.
 const TECH: Record<Category, [string, string][]> = {
   panel: [["wp", "Daya (Wp)"], ["voc", "Voc (V)"], ["vmp", "Vmp (V)"]],
   inverter: [["rated_w", "Daya (W)"], ["pv_max_w", "Batas daya PV (W)"], ["pv_voc_max", "Batas Voc PV (V)"], ["mppt_v_min", "MPPT minimal (V)"],
@@ -16,6 +17,15 @@ const TECH: Record<Category, [string, string][]> = {
   baterai: [["capacity_ah", "Kapasitas (Ah)"], ["voltage_v", "Tegangan nominal (V)"], ["dod_pct", "Kedalaman pakai (% DoD)"]],
   aksesoris: [],
 }
+const OPTIONAL: Record<Category, [string, string, string][]> = {
+  panel: [["isc", "Isc (A)", "Boleh kosong. Tanpa Isc, cek arus di Simulator dilewati."]],
+  inverter: [["pv_current_max", "Arus input PV maksimal (A)", "Total semua input MPPT. Boleh kosong, cek arus dilewati."]],
+  baterai: [["cycle_life", "Jumlah siklus (datasheet)", "Boleh kosong. Umur baterai lalu memakai umur maksimal di Pengaturan."]],
+  aksesoris: [],
+}
+const TIER: Record<string, string> = { hemat: "Hemat", standar: "Standar", premium: "Premium" }
+const BASIS: Record<string, string> = { per_sistem: "per sistem", per_string: "per string", per_panel: "per panel" }
+const SYSTEM: Record<string, string> = { hybrid_offgrid: "hybrid", on_grid: "on-grid" }
 const STALE = 30 * 86400e3
 
 // List Part (PRD bagian 11): satu-satunya sumber part dan harga untuk Simulator dan Planning. Part tidak dihapus, hanya dinonaktifkan.
@@ -42,7 +52,9 @@ export default function PartsPage() {
             <tbody>{list.data.parts.map(p => (
               <tr key={p.id} className={p.is_active ? "" : "off"}>
                 <td>{p.name}{!p.is_active && <small>Nonaktif</small>}</td>
-                <td>{CATEGORY[p.category]}<small>{TECH[p.category].map(([k]) => p[k] != null ? fmtNum(p[k] as number) : "").filter(Boolean).join(" · ")}</small></td>
+                <td>{CATEGORY[p.category]}{p.package_tier ? ` · ${TIER[p.package_tier as string]}` : ""}<small>{p.category === "aksesoris"
+                  ? p.qty_basis ? `Simulator: ${fmtNum(p.qty_per_basis as number)} ${BASIS[p.qty_basis as string]}${p.system_type ? `, ${SYSTEM[p.system_type as string]}` : ""}` : ""
+                  : TECH[p.category].map(([k]) => p[k] != null ? fmtNum(p[k] as number) : "").filter(Boolean).join(" · ")}</small></td>
                 <td className="num">{rp(p.unit_price)}<small>per {p.unit}</small></td>
                 <td className={Date.now() - Date.parse(p.price_updated_at) > STALE ? "bad" : ""}>{dateText(p.price_updated_at)}</td>
                 <td>{p.buy_url ? <a href={p.buy_url} target="_blank" rel="noreferrer">{p.store_name ?? "Link beli"}</a> : p.store_name ?? "-"}</td>
@@ -59,16 +71,20 @@ export default function PartsPage() {
 function PartForm({ part, onDone }: { part: Part | null; onDone: () => void }) {
   const [category, setCategory] = useState<Category>(part?.category ?? "panel")
   const [systemType, setSystemType] = useState(String(part?.system_type ?? "hybrid_offgrid"))
+  const [basis, setBasis] = useState(String(part?.qty_basis ?? ""))
   const act = useAction()
   const numOr = (v: FormDataEntryValue | null) => (v === null || v === "" ? null : Number(v))
+  const strOr = (v: FormDataEntryValue | null) => (v === null || v === "" ? null : String(v))
   function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
     const body: Record<string, unknown> = { name: f.get("name"), unit: f.get("unit"), unit_price: Number(f.get("unit_price")), store_name: f.get("store_name") || null,
       buy_url: f.get("buy_url") || null, notes: f.get("notes") || null, is_active: f.get("is_active") === "on",
-      ...Object.fromEntries(TECH[category].map(([k]) => [k, numOr(f.get(k))])) }
+      ...Object.fromEntries([...TECH[category], ...OPTIONAL[category]].map(([k]) => [k, numOr(f.get(k))])) }
+    if (category !== "aksesoris") body.package_tier = strOr(f.get("package_tier"))
     if (category === "inverter") { body.system_type = systemType; body.battery_system_v = systemType === "on_grid" ? null : numOr(f.get("battery_system_v")) }
     if (category === "baterai") body.battery_system_v = numOr(f.get("battery_system_v"))
+    if (category === "aksesoris") Object.assign(body, { system_type: strOr(f.get("acc_system")), qty_basis: basis || null, qty_per_basis: basis ? numOr(f.get("qty_per_basis")) : null })
     act.run(async () => {
       if (part) await api(`/api/admin/parts/${part.id}`, { method: "PATCH", body })
       else await api("/api/admin/parts", { body: { ...body, category } })
@@ -95,6 +111,22 @@ function PartForm({ part, onDone }: { part: Part | null; onDone: () => void }) {
             <select id="bat-v" name="battery_system_v" defaultValue={String(part?.battery_system_v ?? 24)}>{[12, 24, 48].map(v => <option key={v} value={v}>{v} V</option>)}</select></div></div>
         )}
         {TECH[category].map(([k, l]) => <Field key={`${category}-${k}`} label={l} name={k} type="number" step="any" min="0" defaultValue={(part?.[k] as number | undefined) ?? ""} required />)}
+        {OPTIONAL[category].map(([k, l, h]) => <Field key={`${category}-${k}`} label={l} name={k} type="number" step="any" min="0" hint={h} defaultValue={(part?.[k] as number | undefined) ?? ""} />)}
+        {category !== "aksesoris" && <div className="field"><label htmlFor="part-tier">Kelas paket</label><div className="box">
+          <select id="part-tier" name="package_tier" defaultValue={String(part?.package_tier ?? "")}>
+            <option value="">Tanpa kelas (hanya lewat Atur sendiri)</option>{Object.entries(TIER).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+          <span className="hint">Paket Hemat, Standar, dan Premium di Simulator disusun dari part berkelas ini.</span></div>}
+        {category === "aksesoris" && <>
+          <div className="field"><label htmlFor="qty-basis">Dipakai di estimasi Simulator</label><div className="box">
+            <select id="qty-basis" value={basis} onChange={e => setBasis(e.target.value)}>
+              <option value="">Tidak (hanya di Planning)</option>{Object.entries(BASIS).map(([k, l]) => <option key={k} value={k}>Ya, {l}</option>)}</select></div>
+            <span className="hint">Jumlah kasar untuk estimasi aksesoris, misalnya kabel PV 30 meter per string.</span></div>
+          {basis && <Field label={`Jumlah per ${BASIS[basis].replace("per ", "")}`} name="qty_per_basis" type="number" step="any" min="0"
+            defaultValue={(part?.qty_per_basis as number | undefined) ?? ""} required />}
+          {basis && <div className="field"><label htmlFor="acc-system">Jenis sistem</label><div className="box">
+            <select id="acc-system" name="acc_system" defaultValue={String(part?.system_type ?? "")}>
+              <option value="">Hybrid dan on-grid</option><option value="hybrid_offgrid">Hanya hybrid atau off-grid</option><option value="on_grid">Hanya on-grid</option></select></div></div>}
+        </>}
       </div>
       <div className="field"><label htmlFor="part-notes">Catatan</label><textarea id="part-notes" name="notes" rows={2} defaultValue={part?.notes ?? ""} /></div>
       <label className="check"><input type="checkbox" name="is_active" defaultChecked={part?.is_active ?? true} /> Aktif (muncul di pilihan Simulator dan Planning)</label>

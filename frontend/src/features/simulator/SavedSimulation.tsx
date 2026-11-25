@@ -1,20 +1,22 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { Link, useParams } from "react-router"
 import type { Params } from "../../../../shared/calc/rumah"
-import { evaluate } from "../../../../shared/calc/simulator"
+import { evaluate, TIER_LABEL, type SystemType, type Tier } from "../../../../shared/calc/simulator"
 import { bepTxt, fmtNum, n1, rp } from "../../../../shared/format"
 import { api } from "../../core/api"
 import { useSession } from "../../core/session"
 import { MapPicker, type Point } from "../../core/MapPicker"
 import { Field, Loading } from "../../core/ui"
 import { AdviceCard, CashCard, DayCard, FlowCard } from "./Results"
-import { layTips, PATTERNS } from "./simple"
+import { layTips, ONGRID_NOTE, PATTERNS } from "./simple"
 
 export interface Simulation {
   id: string; created_at: string; is_locked: boolean; danger: boolean; pv_used_pct: number; params: Params
+  system_type: SystemType; package_tier: Tier | null
   pln_power_va: number; monthly_bill: number; usage_pattern: string; panel_qty: number; battery_qty: number
   monthly_saving: number; bep_years: number | null; est_investment: number; capacity_kwp: number; daily_production_kwh: number
-  snapshot: { panel: { name: string; wp: number }; inverter: { name: string }; battery: { name: string } | null }
+  snapshot: { panel: { name: string; wp: number }; inverter: { name: string }; battery: { name: string } | null
+    accessories_estimate?: number; service_estimate?: number; battery_life_years?: number | null }
 }
 
 const date = (d: string) => new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" })
@@ -27,7 +29,7 @@ export default function SavedSimulation() {
   useEffect(() => { api<{ simulation: Simulation }>(`/api/simulations/${id}`).then(r => setSim(r.simulation), err => setError(err.message)) }, [id])
   if (error) return <section className="wrap page"><p className="msg bad" role="alert">{error}</p></section>
   if (!sim || session.status !== "user") return <Loading />
-  const e = evaluate(sim.params), admin = session.user.role === "admin"
+  const e = evaluate(sim.params), admin = session.user.role === "admin", onGrid = sim.system_type === "on_grid", s = sim.snapshot
   const tips = admin ? e.tips : layTips(e.params, e.rows)
 
   return (
@@ -37,15 +39,20 @@ export default function SavedSimulation() {
         <p className="sub">Disimpan {date(sim.created_at)}. Angka di simulasi ini tidak berubah walaupun harga part berubah.</p>
         <dl className="info sum">
           <dt>Rumah</dt><dd>{fmtNum(sim.pln_power_va)} VA, tagihan {rp(sim.monthly_bill)} per bulan, {pattern(sim.usage_pattern).toLowerCase()}</dd>
-          <dt>Panel</dt><dd>{sim.panel_qty} × {sim.snapshot.panel.name} ({n1(sim.capacity_kwp, 2)} kWp)</dd>
-          <dt>Inverter</dt><dd>{sim.snapshot.inverter.name}</dd>
-          <dt>Baterai</dt><dd>{sim.snapshot.battery ? `${sim.battery_qty} × ${sim.snapshot.battery.name}` : "Tanpa baterai"}</dd>
+          <dt>Sistem</dt><dd>{onGrid ? "On-grid" : "Hybrid atau off-grid"}, {sim.package_tier ? `paket ${TIER_LABEL[sim.package_tier]}` : "part diatur sendiri"}</dd>
+          <dt>Panel</dt><dd>{sim.panel_qty} × {s.panel.name} ({n1(sim.capacity_kwp, 2)} kWp)</dd>
+          <dt>Inverter</dt><dd>{s.inverter.name}</dd>
+          {!onGrid && <><dt>Baterai</dt><dd>{s.battery ? `${sim.battery_qty} × ${s.battery.name}` : "Tanpa baterai"}
+            {s.battery_life_years ? `, diganti tiap ±${s.battery_life_years} tahun` : ""}</dd></>}
           <dt>Produksi per hari</dt><dd>{n1(sim.daily_production_kwh)} kWh</dd>
           <dt>Hemat per bulan</dt><dd>{rp(sim.monthly_saving)}</dd>
           <dt>Balik modal</dt><dd>{bepTxt(sim.bep_years)}</dd>
+          {s.accessories_estimate !== undefined && <><dt>Aksesoris (perkiraan)</dt><dd>{rp(s.accessories_estimate)}</dd></>}
+          {s.service_estimate !== undefined && <><dt>Jasa (perkiraan)</dt><dd>{rp(s.service_estimate)}</dd></>}
           <dt>Estimasi investasi</dt><dd>{rp(sim.est_investment)}</dd>
         </dl>
         <p className="note">Estimasi kasar. Biaya final dihitung saat perhitungan detail.</p>
+        {onGrid && <p className="note">{ONGRID_NOTE}</p>}
       </div>
       {!admin && <Submit sim={sim} />}
       <AdviceCard tips={tips} />

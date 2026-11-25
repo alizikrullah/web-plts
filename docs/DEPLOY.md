@@ -38,6 +38,6 @@ Alamat seperti `/akun` dilayani `index.html` otomatis, karena proyek tanpa `404.
 
 | Perintah | Isi |
 | --- | --- |
-| `npm test` di `backend` | 88 tes API, termasuk aturan data PRD bagian 18 |
+| `npm test` di `backend` | 97 tes API, termasuk aturan data PRD bagian 18 |
 | `npx vitest run` di `frontend` | Tes modul hitung dan aturan tanpa em dash |
 | `npm run e2e` di `frontend` | Tes lewat layar untuk semua skenario PRD bagian 13, memakai database `plts_e2e` yang dibangun ulang |

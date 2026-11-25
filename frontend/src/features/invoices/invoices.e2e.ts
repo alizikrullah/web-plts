@@ -7,11 +7,12 @@ test("skenario 9: Planning dijadikan final, tagihan awal terbit lalu dicatat lun
   const c = await newClient(request, "Client Sembilan")
   await loginUi(page, "admin@e2e.test")
   await page.goto(`/client/${c.project.id}?tab=planning`)
-  // Panel, inverter, dan baterai sudah terisi dari simulasi; admin menambah jasa dan SDM.
-  await expect(page.getByRole("region", { name: "Part" }).locator("tbody tr")).toHaveCount(3)
+  // Panel, inverter, baterai, aksesoris, dan satu baris jasa sudah terisi dari simulasi (PRD 7.4); admin menambah jasa dan SDM.
+  await expect(page.getByRole("region", { name: "Part" }).locator("tbody tr")).toHaveCount(5)
+  await expect(page.getByRole("region", { name: "Jasa" }).getByLabel("Uraian")).toHaveValue("Jasa (estimasi dari simulasi)")
   await page.getByRole("button", { name: "Tambah Jasa" }).click()
-  await page.getByRole("region", { name: "Jasa" }).getByLabel("Uraian").fill("Instalasi dan setting inverter")
-  await page.getByRole("region", { name: "Jasa" }).getByLabel("Nominal").fill("2500000")
+  await page.getByRole("region", { name: "Jasa" }).getByLabel("Uraian").last().fill("Instalasi dan setting inverter")
+  await page.getByRole("region", { name: "Jasa" }).getByLabel("Nominal").last().fill("2500000")
   await page.getByRole("button", { name: "Tambah SDM" }).click()
   await page.getByRole("button", { name: "Simpan draf" }).click()
   await expect(page.getByText("Planning tersimpan.")).toBeVisible()

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
-import type { Battery, Inverter, Panel, SimSettings } from "../../../../shared/calc/simulator"
+import type { Accessory, Battery, Inverter, Panel, SimSettings } from "../../../../shared/calc/simulator"
 import { bepTxt, n1, rpS } from "../../../../shared/format"
 import { api } from "../../core/api"
 import { LuChartLine, LuColumns2, LuLightbulb, LuSlidersHorizontal, LuSun } from "react-icons/lu"
@@ -18,9 +18,8 @@ export default function SimulatorPage() {
     Promise.all([api<{ parts: any[] }>("/api/parts"), api<{ settings: Record<string, any> }>("/api/settings/public")]).then(([p, { settings }]) => {
       const of = <T,>(c: string) => p.parts.filter(x => x.category === c) as T[]
       setData({
-        parts: { panels: of<Panel>("panel"), inverters: of<Inverter>("inverter"), batteries: of<Battery>("baterai") },
-        s: { ...settings, installation_estimate: settings.installation_estimate ?? 0 } as SimSettings,
-        whatsapp: settings.whatsapp_number ?? null, installationMissing: settings.installation_estimate == null,
+        parts: { panels: of<Panel>("panel"), inverters: of<Inverter>("inverter"), batteries: of<Battery>("baterai"), accessories: of<Accessory>("aksesoris") },
+        s: settings as SimSettings, whatsapp: settings.whatsapp_number ?? null,
       })
     }).catch(e => setError(e.message))
   }, [])
