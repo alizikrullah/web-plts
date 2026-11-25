@@ -32,15 +32,13 @@ const INVERTER_TYPE: Record<string, string> = { hybrid_offgrid: "Hybrid atau off
 const FILTERS: [string, string][] = [["panel", "Panel"], ["inverter", "Inverter (semua)"], ["inverter:hybrid_offgrid", "Inverter hybrid atau off-grid"],
   ["inverter:on_grid", "Inverter on-grid"], ["baterai", "Baterai"], ["aksesoris", "Aksesoris"]]
 
-// Spesifikasi singkat dengan nama dan satuan, supaya bisa dicek sekilas tanpa membuka halaman ubah.
+// Spesifikasi ringkas untuk membedakan part sekilas. Angka lengkapnya ada di halaman ubah.
 function specOf(p: Part) {
-  const n = (k: string) => fmtNum(p[k] as number), has = (k: string) => p[k] != null
+  const n = (k: string) => fmtNum(p[k] as number)
   const out: string[] = []
-  if (p.category === "panel") out.push(`${n("wp")} Wp`, `Voc ${n("voc")} V`, `Vmp ${n("vmp")} V`, ...(has("isc") ? [`Isc ${n("isc")} A`] : []))
-  if (p.category === "inverter") out.push(`${n("rated_w")} W`, `PV maks ${n("pv_max_w")} W`, `Voc maks ${n("pv_voc_max")} V`, `MPPT ${n("mppt_v_min")} sampai ${n("mppt_v_max")} V`,
-    ...(has("pv_current_max") ? [`arus maks ${n("pv_current_max")} A`] : []), `efisiensi ${n("efficiency_pct")}%`, ...(has("battery_system_v") ? [`baterai ${n("battery_system_v")} V`] : []))
-  if (p.category === "baterai") out.push(`${n("capacity_ah")} Ah`, `${n("voltage_v")} V (kelas ${n("battery_system_v")} V)`, `DoD ${n("dod_pct")}%`,
-    ...(has("cycle_life") ? [`${n("cycle_life")} siklus`] : []))
+  if (p.category === "panel") out.push(`${n("wp")} Wp`)
+  if (p.category === "inverter") out.push(`${n("rated_w")} W`, ...(p.battery_system_v != null ? [`baterai ${n("battery_system_v")} V`] : []))
+  if (p.category === "baterai") out.push(`${n("capacity_ah")} Ah`, `${n("battery_system_v")} V`)
   if (p.category === "aksesoris" && p.qty_basis)
     out.push(`Simulator: ${n("qty_per_basis")} ${p.unit} ${BASIS[p.qty_basis as string]}`)
   return out.join(" · ")

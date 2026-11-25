@@ -112,7 +112,7 @@ test("tahap lanjutan: admin mengisi kelas paket, Isc, dan aturan jumlah aksesori
   await page.getByRole("button", { name: "Simpan" }).click()
   const row = page.locator("tr", { hasText: "Panel 450 Wp" })
   await expect(row.locator("td").nth(2)).toHaveText("Hemat")
-  await expect(row.locator("td.spec")).toHaveText("450 Wp · Voc 41,5 V · Vmp 34,6 V · Isc 11,5 A")
+  await expect(row.locator("td.spec")).toHaveText("450 Wp")
   // inverter menampilkan jenis sistemnya, dan filter bisa memilih inverter on-grid saja
   await page.getByLabel("Kategori").selectOption("inverter:on_grid")
   await expect(page.locator("table.data tbody tr td:nth-child(2)")).toHaveText(Array(2).fill(/^InverterOn-grid$/))
