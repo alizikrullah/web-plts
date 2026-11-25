@@ -103,18 +103,22 @@ test("tahap lanjutan: admin mengisi kelas paket, Isc, dan aturan jumlah aksesori
   await page.getByLabel("Harga satuan").fill("12000")
   await page.getByLabel("Dipakai di estimasi Simulator").selectOption("per_panel")
   await page.getByLabel("Jumlah per panel").fill("2")
-  await page.getByLabel("Jenis sistem").selectOption("on_grid")
   await page.getByRole("button", { name: "Simpan" }).click()
-  await expect(page.locator("tr", { hasText: "Klem Uji" })).toContainText("Simulator: 2 per panel, on-grid")
+  await expect(page.locator("tr", { hasText: "Klem Uji" })).toContainText("Simulator: 2 pcs per panel")
 
   await page.locator("tr", { hasText: "Panel 450 Wp" }).getByRole("link", { name: "Ubah" }).click()
   await page.getByLabel("Isc (A)").fill("11.5")
   await page.getByLabel("Kelas paket").selectOption("hemat")
   await page.getByRole("button", { name: "Simpan" }).click()
-  await expect(page.locator("tr", { hasText: "Panel 450 Wp" })).toContainText("Panel · Hemat")
+  const row = page.locator("tr", { hasText: "Panel 450 Wp" })
+  await expect(row.locator("td").nth(2)).toHaveText("Hemat")
+  await expect(row.locator("td.spec")).toHaveText("450 Wp · Voc 41,5 V · Vmp 34,6 V · Isc 11,5 A")
+  // inverter menampilkan jenis sistemnya, dan filter bisa memilih inverter on-grid saja
+  await page.getByLabel("Kategori").selectOption("inverter:on_grid")
+  await expect(page.locator("table.data tbody tr td:nth-child(2)")).toHaveText(Array(2).fill(/^InverterOn-grid$/))
 
   const parts = (await call(request, "GET", "/api/parts")).parts as { name: string; [k: string]: unknown }[]
-  expect(parts.find(p => p.name === "Klem Uji")).toMatchObject({ qty_basis: "per_panel", qty_per_basis: 2, system_type: "on_grid" })
+  expect(parts.find(p => p.name === "Klem Uji")).toMatchObject({ qty_basis: "per_panel", qty_per_basis: 2, system_type: null })
   expect(parts.find(p => p.name === "Panel 450 Wp")).toMatchObject({ isc: 11.5, package_tier: "hemat" })
   // kembalikan supaya tes lain memakai data awal
   const token = await adminToken(request)

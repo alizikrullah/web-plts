@@ -238,6 +238,7 @@ table.data { width: 100%; border-collapse: collapse; font-size: .88rem }
 table.data th { padding: 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .75rem; font-weight: 600; text-align: left; white-space: nowrap }
 table.data td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle }
 table.data td small { display: block; color: var(--muted); font-size: .76rem }
+table.data td.spec { min-width: 220px; color: var(--muted); font-size: .8rem }
 table.data .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap }
 table.data tfoot th { color: var(--fg); font-size: .85rem }
 table.data tr.off td { color: var(--muted) }

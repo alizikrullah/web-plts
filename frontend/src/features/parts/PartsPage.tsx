@@ -26,16 +26,35 @@ const OPTIONAL: Record<Category, [string, string, string][]> = {
 }
 const TIER: Record<string, string> = { hemat: "Hemat", standar: "Standar", premium: "Premium" }
 const BASIS: Record<string, string> = { per_sistem: "per sistem", per_string: "per string", per_panel: "per panel" }
-const SYSTEM: Record<string, string> = { hybrid_offgrid: "hybrid", on_grid: "on-grid" }
 const STALE = 30 * 86400e3
+const INVERTER_TYPE: Record<string, string> = { hybrid_offgrid: "Hybrid atau off-grid", on_grid: "On-grid" }
+// Filter kategori: inverter dipecah per jenis sistem.
+const FILTERS: [string, string][] = [["panel", "Panel"], ["inverter", "Inverter (semua)"], ["inverter:hybrid_offgrid", "Inverter hybrid atau off-grid"],
+  ["inverter:on_grid", "Inverter on-grid"], ["baterai", "Baterai"], ["aksesoris", "Aksesoris"]]
+
+// Spesifikasi singkat dengan nama dan satuan, supaya bisa dicek sekilas tanpa membuka halaman ubah.
+function specOf(p: Part) {
+  const n = (k: string) => fmtNum(p[k] as number), has = (k: string) => p[k] != null
+  const out: string[] = []
+  if (p.category === "panel") out.push(`${n("wp")} Wp`, `Voc ${n("voc")} V`, `Vmp ${n("vmp")} V`, ...(has("isc") ? [`Isc ${n("isc")} A`] : []))
+  if (p.category === "inverter") out.push(`${n("rated_w")} W`, `PV maks ${n("pv_max_w")} W`, `Voc maks ${n("pv_voc_max")} V`, `MPPT ${n("mppt_v_min")} sampai ${n("mppt_v_max")} V`,
+    ...(has("pv_current_max") ? [`arus maks ${n("pv_current_max")} A`] : []), `efisiensi ${n("efficiency_pct")}%`, ...(has("battery_system_v") ? [`baterai ${n("battery_system_v")} V`] : []))
+  if (p.category === "baterai") out.push(`${n("capacity_ah")} Ah`, `${n("voltage_v")} V (kelas ${n("battery_system_v")} V)`, `DoD ${n("dod_pct")}%`,
+    ...(has("cycle_life") ? [`${n("cycle_life")} siklus`] : []))
+  if (p.category === "aksesoris" && p.qty_basis)
+    out.push(`Simulator: ${n("qty_per_basis")} ${p.unit} ${BASIS[p.qty_basis as string]}`)
+  return out.join(" · ")
+}
 
 // List Part (PRD bagian 11): satu-satunya sumber part dan harga untuk Simulator dan Planning. Part tidak dihapus, hanya dinonaktifkan.
 // Tambah dan ubah part ada di halaman sendiri (/list-part/baru dan /list-part/:id/ubah). Filter disimpan di alamat supaya tetap sama saat kembali.
 export default function PartsPage() {
   const [sp, setSp] = useSearchParams(), location = useLocation()
-  const category = sp.get("kategori") ?? "", active = sp.get("status") ?? "true"
+  const kind = sp.get("kategori") ?? "", active = sp.get("status") ?? "true"
+  const [category, system] = kind.split(":")
   const filter = (k: string, v: string) => setSp(s => { s.set(k, v); return s }, { replace: true })
   const list = useApi<{ parts: Part[] }>(`/api/admin/parts?category=${category}&active=${active}`)
+  const parts = list.data?.parts.filter(p => !system || p.system_type === system)
   const saved = (location.state as { saved?: string } | null)?.saved
   const back = { back: location.search }
   return (
@@ -47,20 +66,20 @@ export default function PartsPage() {
       {saved && <p className="msg ok" role="status">{saved}</p>}
       <div className="card">
         <div className="filters">
-          <label>Kategori <select value={category} onChange={e => filter("kategori", e.target.value)}><option value="">Semua</option>
-            {Object.entries(CATEGORY).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+          <label>Kategori <select value={kind} onChange={e => filter("kategori", e.target.value)}><option value="">Semua</option>
+            {FILTERS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
           <label>Status <select value={active} onChange={e => filter("status", e.target.value)}>
             <option value="true">Aktif</option><option value="false">Nonaktif</option><option value="">Semua</option></select></label>
         </div>
-        {!list.data ? <Loading /> : (
+        {!parts ? <Loading /> : (
           <div className="table-wrap"><table className="data">
-            <thead><tr><th>Nama</th><th>Kategori</th><th className="num">Harga satuan</th><th>Harga diperbarui</th><th>Toko</th><th /></tr></thead>
-            <tbody>{list.data.parts.map(p => (
+            <thead><tr><th>Nama</th><th>Kategori</th><th>Kelas paket</th><th>Spesifikasi</th><th className="num">Harga satuan</th><th>Harga diperbarui</th><th>Toko</th><th /></tr></thead>
+            <tbody>{parts.map(p => (
               <tr key={p.id} className={p.is_active ? "" : "off"}>
                 <td>{p.name}{!p.is_active && <small>Nonaktif</small>}</td>
-                <td>{CATEGORY[p.category]}{p.package_tier ? ` · ${TIER[p.package_tier as string]}` : ""}<small>{p.category === "aksesoris"
-                  ? p.qty_basis ? `Simulator: ${fmtNum(p.qty_per_basis as number)} ${BASIS[p.qty_basis as string]}${p.system_type ? `, ${SYSTEM[p.system_type as string]}` : ""}` : ""
-                  : TECH[p.category].map(([k]) => p[k] != null ? fmtNum(p[k] as number) : "").filter(Boolean).join(" · ")}</small></td>
+                <td>{CATEGORY[p.category]}{p.category === "inverter" && <small>{INVERTER_TYPE[p.system_type as string]}</small>}</td>
+                <td>{p.package_tier ? TIER[p.package_tier as string] : p.category === "aksesoris" ? "" : "-"}</td>
+                <td className="spec">{specOf(p)}</td>
                 <td className="num">{rp(p.unit_price)}<small>per {p.unit}</small></td>
                 <td className={Date.now() - Date.parse(p.price_updated_at) > STALE ? "bad" : ""}>{dateText(p.price_updated_at)}</td>
                 <td>{p.buy_url ? <a href={p.buy_url} target="_blank" rel="noreferrer">{p.store_name ?? "Link beli"}</a> : p.store_name ?? "-"}</td>
@@ -106,7 +125,7 @@ function PartForm({ part, onDone }: { part: Part | null; onDone: (saved?: string
     if (category !== "aksesoris") body.package_tier = strOr(f.get("package_tier"))
     if (category === "inverter") { body.system_type = systemType; body.battery_system_v = systemType === "on_grid" ? null : numOr(f.get("battery_system_v")) }
     if (category === "baterai") body.battery_system_v = numOr(f.get("battery_system_v"))
-    if (category === "aksesoris") Object.assign(body, { system_type: strOr(f.get("acc_system")), qty_basis: basis || null, qty_per_basis: basis ? numOr(f.get("qty_per_basis")) : null })
+    if (category === "aksesoris") Object.assign(body, { qty_basis: basis || null, qty_per_basis: basis ? numOr(f.get("qty_per_basis")) : null })
     act.run(async () => {
       if (part) await api(`/api/admin/parts/${part.id}`, { method: "PATCH", body })
       else await api("/api/admin/parts", { body: { ...body, category } })
@@ -141,12 +160,9 @@ function PartForm({ part, onDone }: { part: Part | null; onDone: (saved?: string
           <div className="field"><label htmlFor="qty-basis">Dipakai di estimasi Simulator</label><div className="box">
             <select id="qty-basis" value={basis} onChange={e => setBasis(e.target.value)}>
               <option value="">Tidak (hanya di Planning)</option>{Object.entries(BASIS).map(([k, l]) => <option key={k} value={k}>Ya, {l}</option>)}</select></div>
-            <span className="hint">Jumlah kasar untuk estimasi aksesoris, misalnya kabel PV 30 meter per string.</span></div>
+            <span className="hint">Jumlah kasar untuk estimasi aksesoris, misalnya kabel PV 30 meter per string. Berlaku untuk hybrid dan on-grid.</span></div>
           {basis && <Field label={`Jumlah per ${BASIS[basis].replace("per ", "")}`} name="qty_per_basis" type="number" step="any" min="0"
             defaultValue={(part?.qty_per_basis as number | undefined) ?? ""} required />}
-          {basis && <div className="field"><label htmlFor="acc-system">Jenis sistem</label><div className="box">
-            <select id="acc-system" name="acc_system" defaultValue={String(part?.system_type ?? "")}>
-              <option value="">Hybrid dan on-grid</option><option value="hybrid_offgrid">Hanya hybrid atau off-grid</option><option value="on_grid">Hanya on-grid</option></select></div></div>}
         </>}
       </div>
       <div className="field"><label htmlFor="part-notes">Catatan</label><textarea id="part-notes" name="notes" rows={2} defaultValue={part?.notes ?? ""} /></div>

@@ -30,7 +30,7 @@ const GROUPS: { title: string; items: Spec[] }[] = [
     { key: "day_share_pct", label: "Porsi siang tiap pola pemakaian", kind: "object", sub: PATTERN },
     { key: "panel_wp_per_va", label: "Faktor kapasitas panel (Wp per VA)", kind: "number", hint: "Kapasitas panel paket = daya PLN × angka ini." },
     { key: "accessories_estimate_pct", label: "Persen cadangan estimasi aksesoris (% dari komponen utama)", kind: "number",
-      hint: "Hanya dipakai selama belum ada aksesoris dengan aturan jumlah untuk jenis sistem itu." },
+      hint: "Hanya dipakai selama belum ada aksesoris dengan aturan jumlah di List Part." },
     { key: "service_base", label: "Jasa dasar (Rp)", kind: "number", hint: "Estimasi jasa = jasa dasar + jasa per kWp × kapasitas panel." },
     { key: "service_per_kwp", label: "Jasa per kWp (Rp)", kind: "number" }] },
   { title: "Planning dan tagihan", items: [

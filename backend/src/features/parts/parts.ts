@@ -10,7 +10,7 @@ const TECH = {
   panel: ["package_tier", "wp", "voc", "vmp", "isc"],
   inverter: ["package_tier", "system_type", "rated_w", "pv_max_w", "pv_voc_max", "mppt_v_min", "mppt_v_max", "pv_current_max", "efficiency_pct", "battery_system_v"],
   baterai: ["package_tier", "battery_system_v", "capacity_ah", "voltage_v", "dod_pct", "cycle_life"],
-  aksesoris: ["system_type", "qty_basis", "qty_per_basis"],
+  aksesoris: ["qty_basis", "qty_per_basis"],
 } as const
 const ALL_TECH = [...new Set(Object.values(TECH).flat())]
 const COLUMNS = ["category", "name", "unit", "unit_price", "store_name", "buy_url", "notes", "is_active", ...ALL_TECH]
@@ -60,9 +60,9 @@ export function readPart(b: Body) {
     })
   }
   if (category === "aksesoris") {
-    // Aturan jumlah untuk estimasi Simulator (PRD 6.3). Tanpa aturan, aksesoris hanya dipakai di Planning.
+    // Aturan jumlah untuk estimasi Simulator (PRD 6.3), berlaku untuk semua jenis sistem. Tanpa aturan, aksesoris hanya dipakai di Planning.
     const qty_basis = optOne(b, "qty_basis", ["per_sistem", "per_string", "per_panel"] as const)
-    Object.assign(p, { system_type: optOne(b, "system_type", SYSTEM_TYPES), qty_basis, qty_per_basis: qty_basis ? pos(b, "qty_per_basis") : null })
+    Object.assign(p, { qty_basis, qty_per_basis: qty_basis ? pos(b, "qty_per_basis") : null })
   }
   return p
 }

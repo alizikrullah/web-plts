@@ -30,7 +30,6 @@
     "name": "Shine WiFi-X (monitoring Growatt)",
     "unit": "unit",
     "unit_price": 450000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. Cek dulu, sering sudah termasuk inverter."
@@ -42,8 +41,7 @@
     "unit_price": 27000,
     "qty_basis": "per_string",
     "qty_per_basis": 30,
-    "notes": "Dari RAB on-grid tim: 30 m per string.",
-    "system_type": "on_grid"
+    "notes": "Dari RAB on-grid tim: 30 m per string."
   },
   {
     "category": "aksesoris",
@@ -52,15 +50,13 @@
     "unit_price": 30000,
     "qty_basis": "per_string",
     "qty_per_basis": 2,
-    "notes": "Dari RAB on-grid tim: 2 pasang per string.",
-    "system_type": "on_grid"
+    "notes": "Dari RAB on-grid tim: 2 pasang per string."
   },
   {
     "category": "aksesoris",
     "name": "DC isolator 2P 550 V DC 16 A",
     "unit": "pcs",
     "unit_price": 200000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
@@ -70,7 +66,6 @@
     "name": "SPD DC 2P 600 V Type II",
     "unit": "pcs",
     "unit_price": 150000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
@@ -80,7 +75,6 @@
     "name": "MCB AC 16 A kurva C",
     "unit": "pcs",
     "unit_price": 75000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
@@ -90,7 +84,6 @@
     "name": "SPD AC 1P+N 275 V Type II",
     "unit": "pcs",
     "unit_price": 150000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
@@ -100,7 +93,6 @@
     "name": "Box panel IP65",
     "unit": "unit",
     "unit_price": 200000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
@@ -110,7 +102,6 @@
     "name": "Kabel AC NYM 3 x 2,5 mm2",
     "unit": "meter",
     "unit_price": 15000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 15,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 15 m per sistem."
@@ -120,7 +111,6 @@
     "name": "Batang arde copper bonded 5/8 x 1,5 m + klem",
     "unit": "pcs",
     "unit_price": 150000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
@@ -130,7 +120,6 @@
     "name": "Kabel grounding 6 mm2 hijau-kuning",
     "unit": "meter",
     "unit_price": 12000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 20,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 20 m per sistem."
@@ -140,7 +129,6 @@
     "name": "Smart meter / CT export limiter",
     "unit": "unit",
     "unit_price": 1200000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. Eastron SDM230-Modbus atau CT Growatt."
@@ -150,7 +138,6 @@
     "name": "Kabel RS485 twisted pair shield 2 x 0,75 mm2",
     "unit": "meter",
     "unit_price": 8000,
-    "system_type": "on_grid",
     "qty_basis": "per_sistem",
     "qty_per_basis": 10,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 10 m per sistem."
@@ -162,8 +149,7 @@
     "unit_price": 60000,
     "qty_basis": "per_panel",
     "qty_per_basis": 1.4,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 1,4 m per panel dihitung dari RAB untuk panel 120 Wp (28 m untuk 20 panel); panel yang lebih lebar butuh rail lebih panjang.",
-    "system_type": "on_grid"
+    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 1,4 m per panel dihitung dari RAB untuk panel 120 Wp (28 m untuk 20 panel); panel yang lebih lebar butuh rail lebih panjang."
   },
   {
     "category": "aksesoris",
@@ -172,8 +158,7 @@
     "unit_price": 12000,
     "qty_basis": "per_panel",
     "qty_per_basis": 1.8,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 36 untuk 20 panel.",
-    "system_type": "on_grid"
+    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 36 untuk 20 panel."
   },
   {
     "category": "aksesoris",
@@ -182,8 +167,7 @@
     "unit_price": 12000,
     "qty_basis": "per_panel",
     "qty_per_basis": 0.4,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 8 untuk 20 panel (2 baris).",
-    "system_type": "on_grid"
+    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 8 untuk 20 panel (2 baris)."
   },
   {
     "category": "aksesoris",
@@ -192,8 +176,7 @@
     "unit_price": 20000,
     "qty_basis": "per_panel",
     "qty_per_basis": 1.2,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 24 untuk 20 panel, sesuaikan jenis atap.",
-    "system_type": "on_grid"
+    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 24 untuk 20 panel, sesuaikan jenis atap."
   },
   {
     "category": "aksesoris",
@@ -202,7 +185,6 @@
     "unit_price": 250000,
     "qty_basis": "per_sistem",
     "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui.",
-    "system_type": "on_grid"
+    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
   }
 ]

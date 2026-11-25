@@ -18,7 +18,7 @@ export interface Battery {
   cycle_life?: number | null; package_tier?: Tier | null
 }
 export type QtyBasis = "per_sistem" | "per_string" | "per_panel"
-export interface Accessory { id: string; name: string; unit: string; unit_price: number; system_type: SystemType | null; qty_basis: QtyBasis | null; qty_per_basis: number | null }
+export interface Accessory { id: string; name: string; unit: string; unit_price: number; qty_basis: QtyBasis | null; qty_per_basis: number | null }
 export interface Catalog { panels: Panel[]; inverters: Inverter[]; batteries: Battery[]; accessories: Accessory[] }
 export type Pattern = "sepi_siang" | "seimbang" | "ramai_siang"
 export interface SimSettings {
@@ -67,11 +67,11 @@ export const isOnGrid = (c: Pick<Config, "inverter">) => c.inverter.system_type 
 // Pembulatan estimasi ke atas ke kelipatan Rp50.000 (PRD 6.3). Cadangan kecil menahan sisa pecahan dari perkalian desimal.
 const up50k = (x: number) => Math.ceil(x / 50000 - 1e-9) * 50000
 
-// PRD 6.3: aksesoris dengan aturan jumlah yang berlaku untuk jenis sistem ini, jumlahnya dibulatkan ke atas.
+// PRD 6.3: aksesoris dengan aturan jumlah, berlaku untuk semua jenis sistem; jumlahnya dibulatkan ke atas.
 export function accessoryLines(c: Config) {
   const base: Record<QtyBasis, number> = { per_sistem: 1, per_string: c.panel_parallel, per_panel: c.panel_qty }
   return (c.accessories ?? [])
-    .filter(a => a.qty_basis && a.qty_per_basis && (a.system_type === null || a.system_type === c.inverter.system_type))
+    .filter(a => a.qty_basis && a.qty_per_basis)
     .map(a => {
       const qty = Math.ceil(a.qty_per_basis! * base[a.qty_basis!] - 1e-9)
       return { part_id: a.id, name: a.name, unit: a.unit, unit_price: a.unit_price, qty, subtotal: qty * a.unit_price }

@@ -37,7 +37,7 @@ test("admin meninjau pengajuan: tolak wajib dengan alasan, terima menjadikan gue
   await expect(page.locator(".head .sub b")).toHaveText("Planning")
   await page.getByRole("button", { name: "Planning", exact: true }).click()
   // Panel, inverter, baterai, dan aksesoris dari simulasi, ditambah satu baris jasa (PRD 7.4).
-  await expect(page.getByRole("region", { name: "Part" }).locator("tbody tr")).toHaveCount(5)
+  await expect(page.getByRole("region", { name: "Part" }).locator("tbody tr")).toHaveCount(6)
   await expect(page.getByRole("region", { name: "Jasa" }).getByLabel("Uraian")).toHaveValue("Jasa (estimasi dari simulasi)")
 })
 

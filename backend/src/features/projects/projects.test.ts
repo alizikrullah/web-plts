@@ -128,9 +128,9 @@ describe("B5 pengajuan dan proyek", () => {
     await pool.query("update parts set unit_price = 27000 where id = $1", [ids.kabelPv])
     const items = (await pool.query("select i.* from planning_items i join plannings p on p.id = i.planning_id where p.project_id = $1 order by sort_order", [project.id])).rows
     expect(items.map(i => [i.type, i.description, i.qty, i.unit_price])).toEqual([["part", "Panel 550 Wp", 4, 1700000], ["part", "Inverter 3000 W 24 V", 1, 6080000],
-      ["part", "LiFePO4 24 V 100 Ah", 1, 12000000], ["part", "Kabel PV 4 mm", 30, 28000], ["part", "Rail aluminium", 6, 60000],
+      ["part", "LiFePO4 24 V 100 Ah", 1, 12000000], ["part", "Kabel PV 4 mm", 30, 28000], ["part", "Pembatas ekspor", 1, 1200000], ["part", "Rail aluminium", 6, 60000],
       ["jasa", "Jasa (estimasi dari simulasi)", 1, 5400000]])
-    const parts = 4 * 1700000 + 6080000 + 12000000 + 30 * 28000 + 6 * 60000
+    const parts = 4 * 1700000 + 6080000 + 12000000 + 30 * 28000 + 1200000 + 6 * 60000
     const pl = (await one(pool, "select * from plannings where project_id = $1", [project.id]))!
     expect(pl).toMatchObject({ status: "draf", total_parts: parts, total_services: 5400000, grand_total: parts + 5400000 })
     const detail = (await call("GET", `/api/admin/projects/${project.id}`, { as: admin })).json

@@ -130,9 +130,9 @@ describe("Tahap lanjutan skenario uji", () => {
     await pool.query("update parts set unit_price = 9500000 where id = $1", [ids.inv5000])
     expect(after.find(p => p.tier === "premium")!.result.est_investment).toBeGreaterThan(before.find(p => p.tier === "premium")!.result.est_investment)
     expect(acc(after, "premium")).toBe(acc(before, "premium"))
-    // Standar dan Premium sama-sama 4 panel dalam 1 string: kabel PV 30 m dan rail 6 m (1,4 m × 4 dibulatkan ke atas)
+    // Standar dan Premium sama-sama 4 panel dalam 1 string: kabel PV 30 m, pembatas ekspor, dan rail 6 m (1,4 m × 4 dibulatkan ke atas)
     expect(acc(after, "premium")).toBe(acc(after, "standar"))
-    expect(acc(after, "standar")).toBe(up50k(30 * 27000 + 6 * 60000))
+    expect(acc(after, "standar")).toBe(up50k(30 * 27000 + 6 * 60000 + 1200000))
   })
 
   it("skenario 24: umur baterai dari jumlah siklus, dibatasi umur maksimal 10 tahun", async () => {
@@ -170,19 +170,19 @@ describe("B4 simpan simulasi", () => {
     // seri maksimal floor(245 / (50,1 x 1,05)) = 4
     expect([sim.panel_qty, sim.panel_series, sim.panel_parallel]).toEqual([4, 4, 1])
     expect(sim.snapshot.panel).toMatchObject({ name: "Panel 550 Wp", unit_price: 1700000, voc: 50.1 })
-    // investasi = komponen + aksesoris dari List Part (kabel PV dan rail, tanpa pembatas ekspor khusus on-grid) + jasa per kWp
+    // investasi = komponen + aksesoris dari List Part (berlaku untuk semua jenis sistem) + jasa per kWp
     const components = 4 * 1700000 + 6080000 + 12000000
-    const accessories = up50k(30 * 27000 + Math.ceil(1.4 * 4) * 60000), service = 1000000 + 2000000 * 2.2
-    expect([accessories, service]).toEqual([1200000, 5400000])
+    const accessories = up50k(30 * 27000 + 1200000 + Math.ceil(1.4 * 4) * 60000), service = 1000000 + 2000000 * 2.2
+    expect([accessories, service]).toEqual([2400000, 5400000])
     expect(sim.est_investment).toBe(components + accessories + service)
     expect(sim.snapshot).toMatchObject({ components_total: components, accessories_estimate: accessories, accessories_from_pct: false, service_estimate: service })
-    expect(sim.snapshot.accessory_lines.map((l: any) => [l.name, l.qty])).toEqual([["Kabel PV 4 mm", 30], ["Rail aluminium", 6]])
+    expect(sim.snapshot.accessory_lines.map((l: any) => [l.name, l.qty])).toEqual([["Kabel PV 4 mm", 30], ["Pembatas ekspor", 1], ["Rail aluminium", 6]])
     expect(sim.capacity_kwp).toBe(2.2)
     expect(sim.is_locked).toBe(false)
     expect(Array.isArray(sim.tips)).toBe(true)
-    // on-grid memakai pembatas ekspor
+    // aksesoris yang sama dipakai on-grid
     const og = (await save(onGrid())).json.simulation
-    expect(og.snapshot.accessory_lines.map((l: any) => l.name)).toContain("Pembatas ekspor")
+    expect(og.snapshot.accessory_lines.map((l: any) => l.name)).toEqual(["Kabel PV 4 mm", "Pembatas ekspor", "Rail aluminium"])
   })
 
   it("tanpa aksesoris beraturan, estimasi aksesoris memakai persen cadangan 20% dibulatkan ke atas ke Rp50.000", async () => {

@@ -34,7 +34,7 @@ export const PARTS = {
   // Aksesoris dengan aturan jumlah untuk estimasi Simulator (PRD 6.3).
   kabelPv: { category: "aksesoris", name: "Kabel PV 4 mm", unit: "meter", unit_price: 27000, qty_basis: "per_string", qty_per_basis: 30 },
   rail: { category: "aksesoris", name: "Rail aluminium", unit: "meter", unit_price: 60000, qty_basis: "per_panel", qty_per_basis: 1.4 },
-  limiter: { category: "aksesoris", name: "Pembatas ekspor", unit: "unit", unit_price: 1200000, system_type: "on_grid", qty_basis: "per_sistem", qty_per_basis: 1 },
+  limiter: { category: "aksesoris", name: "Pembatas ekspor", unit: "unit", unit_price: 1200000, qty_basis: "per_sistem", qty_per_basis: 1 },
 }
 export type PartKey = keyof typeof PARTS
 
