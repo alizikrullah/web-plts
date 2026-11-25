@@ -37,5 +37,16 @@ const port = Number(process.env.PORT ?? 3100)
 // Khusus tes lewat layar: email yang "terkirim" (verifikasi dan reset password) bisa dibaca dari sini.
 const server = express()
 server.get("/api/__test/outbox", (_req, res) => void res.json({ mails: outbox }))
+// Pengelola unduhan seperti IDM menyambar setiap respons PDF yang diterima Chrome tes dan memunculkan unduhan di komputer.
+// Khusus server tes, PDF dikirim sebagai teks tanpa nama file; tes hanya memeriksa bahwa file terbuka.
+server.use((_req, res, next) => {
+  const set = res.setHeader.bind(res)
+  res.setHeader = ((k: string, v: any) => {
+    const key = k.toLowerCase()
+    if (key === "content-disposition") return res
+    return set(k, key === "content-type" && String(v).startsWith("application/pdf") ? "text/plain" : v)
+  }) as typeof res.setHeader
+  next()
+})
 server.use(app)
 server.listen(port, () => console.log(`Backend tes lewat layar siap di port ${port}`))

@@ -7,7 +7,9 @@ export default defineConfig({
   testMatch: "**/*.e2e.ts",
   workers: 1,
   timeout: 60_000,
-  use: { baseURL: "http://localhost:5174", channel: "chrome", headless: true },
+  // Tes hanya memastikan PDF terbuka (alamat blob). Chrome tanpa layar tidak punya penampil PDF dan akan mengunduhnya,
+  // jadi unduhan ditolak supaya tidak ada file yang masuk ke komputer.
+  use: { baseURL: "http://localhost:5174", channel: "chrome", headless: true, acceptDownloads: false },
   webServer: [
     { command: "npx tsx src/test/e2e-server.ts", cwd: "../backend", url: "http://localhost:3100/api/health", timeout: 120_000, reuseExistingServer: false },
     { command: "npx vite --port 5174 --strictPort", url: "http://localhost:5174", timeout: 120_000, reuseExistingServer: false,
