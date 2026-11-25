@@ -89,9 +89,23 @@ a:hover { text-decoration-color: currentColor }
 .site-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 60px }
 .brand { display: flex; align-items: center; gap: 8px; color: inherit; font-weight: 800; letter-spacing: -.01em; text-decoration: none }
 .brand svg { width: 26px; height: 26px; color: var(--accent) }
-.menu-btn { display: flex; align-items: center; gap: 6px; min-height: 40px; margin-left: auto; padding: 0 12px; border: 1px solid rgb(255 255 255 / 20%); border-radius: 10px; background: none; color: inherit; font-weight: 600 }
+.menu-btn { order: 2; display: flex; margin-left: auto; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 1px solid rgb(255 255 255 / 20%); border-radius: 10px; background: none; color: inherit; font-weight: 600 }
 .menu-btn svg { width: 20px; height: 20px }
-.nav { display: none; flex-basis: 100%; flex-direction: column; gap: 2px; padding-bottom: 10px }
+/* Masuk, Daftar, dan Akun: tombol dan ikon, terpisah dari menu, selalu terlihat */
+.acct-nav { order: 1; display: flex; align-items: center; gap: 6px; margin-left: auto }
+.acct-nav ~ .menu-btn { margin-left: 0 }
+.acct-nav .btn.sm { min-height: 36px; padding: 4px 12px; font-size: .85rem }
+.acct-nav .btn:not(.pri) { background: transparent; border-color: rgb(255 255 255 / 35%); color: var(--band-fg) }
+.acct-nav .btn:not(.pri):hover, .acct-nav .btn.active:not(.pri) { background: rgb(255 255 255 / 10%) }
+@media (max-width: 430px) {
+  .site-bar { gap: 8px }
+  .menu-btn { padding: 0 10px }
+  .menu-btn span, .acct-nav .btn svg { display: none }
+}
+.acct { display: flex; align-items: center; gap: 7px; min-height: 38px; padding: 4px 14px 4px 6px; border: 1px solid rgb(255 255 255 / 22%); border-radius: 999px; color: inherit; font-weight: 600; text-decoration: none }
+.acct svg { width: 24px; height: 24px; color: var(--accent) }
+.acct:hover, .acct.active { background: rgb(255 255 255 / 10%) }
+.nav { order: 3; display: none; flex-basis: 100%; flex-direction: column; gap: 2px; padding-bottom: 10px }
 .nav.open { display: flex }
 .nav a { padding: 10px 12px; border-radius: 8px; color: inherit; font-weight: 500; text-decoration: none; opacity: .78 }
 .nav a:hover { opacity: 1; background: rgb(255 255 255 / 6%) }
@@ -433,8 +447,9 @@ table.recap th.num { text-align: right }
 
 @media (min-width: 760px) {
   .menu-btn { display: none }
-  .nav, .nav.open { display: flex; flex: 1; flex-basis: auto; flex-direction: row; justify-content: flex-end; gap: 2px; padding: 0 }
+  .nav, .nav.open { order: 0; display: flex; flex: 1; flex-basis: auto; flex-direction: row; justify-content: flex-end; gap: 2px; padding: 0 }
   .nav a { padding: 8px 12px }
+  .acct-nav { order: 1; padding-left: 14px; border-left: 1px solid rgb(255 255 255 / 16%) }
 }
 
 /* Desktop: isian simulator di kiri, semua hasil di kanan, tanpa tab */

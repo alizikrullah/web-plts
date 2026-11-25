@@ -87,6 +87,10 @@ router.get("/admin/parts", async (req, res) => {
     and ($2::varchar is null or category = $2) and ($3::boolean is null or is_active = $3) order by category, name`, [q, category, active]) })
 })
 
+router.get("/admin/parts/:id", async (req, res) => {
+  res.json({ part: await one(pool, "select * from parts where id = $1", [param(req, "id")]) ?? fail(404, "Part tidak ditemukan", "NOT_FOUND") })
+})
+
 router.post("/admin/parts", async (req, res) => {
   res.status(201).json({ part: await insertPart(pool, readPart(req.body ?? {})) })
 })

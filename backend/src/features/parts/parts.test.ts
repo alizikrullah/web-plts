@@ -121,6 +121,11 @@ describe("B3 List Part", () => {
     expect((await call("POST", "/api/admin/parts", { as: c, body: PANEL })).status).toBe(403)
     const list = await call("GET", "/api/admin/parts?category=panel", { as: admin })
     expect(list.json.parts.every((p: any) => p.category === "panel" && "store_name" in p)).toBe(true)
+    // satu part untuk halaman ubah
+    const id = list.json.parts[0].id
+    expect((await call("GET", `/api/admin/parts/${id}`, { as: admin })).json.part).toMatchObject({ id, category: "panel" })
+    expect((await call("GET", `/api/admin/parts/${id}`, { as: c })).status).toBe(403)
+    expect((await call("GET", "/api/admin/parts/00000000-0000-0000-0000-000000000000", { as: admin })).status).toBe(404)
   })
 })
 

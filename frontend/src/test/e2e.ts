@@ -97,8 +97,9 @@ export const PNG = { name: "bukti.png", mimeType: "image/png",
   buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64") }
 export const PDF = { name: "invoice.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%uji\n") }
 
-export const nav = (page: Page) => page.getByRole("navigation", { name: "Menu utama" })
-export const expectMenu = (page: Page, items: string[]) => expect(nav(page).getByRole("link")).toHaveText(items)
+// Navbar: menu utama ditambah Masuk, Daftar, atau Akun yang dibuat terpisah dari menu.
+export const nav = (page: Page) => page.getByRole("banner")
+export const expectMenu = (page: Page, items: string[]) => expect(nav(page).getByRole("navigation").getByRole("link")).toHaveText(items)
 
 export async function loginUi(page: Page, email: string, password = PASSWORD) {
   await page.goto("/masuk")

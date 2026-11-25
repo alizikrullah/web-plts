@@ -4,7 +4,7 @@ import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "../featu
 import LoginPage from "../features/auth/LoginPage"
 import RegisterPage from "../features/auth/RegisterPage"
 import HomePage from "../features/home/HomePage"
-import PartsPage from "../features/parts/PartsPage"
+import PartsPage, { PartFormPage } from "../features/parts/PartsPage"
 import ClientProjectPage from "../features/projects/ClientProjectPage"
 import NewProjectPage from "../features/projects/NewProjectPage"
 import ProjectListPage from "../features/projects/ProjectListPage"
@@ -36,6 +36,8 @@ export default function App() {
         <Route path="client/baru" element={<RequireRole roles={["admin"]}><NewProjectPage /></RequireRole>} />
         <Route path="client/:id" element={<RequireRole roles={["admin"]}><ProjectPage /></RequireRole>} />
         <Route path="list-part" element={<RequireRole roles={["admin"]}><PartsPage /></RequireRole>} />
+        <Route path="list-part/baru" element={<RequireRole roles={["admin"]}><PartFormPage /></RequireRole>} />
+        <Route path="list-part/:id/ubah" element={<RequireRole roles={["admin"]}><PartFormPage /></RequireRole>} />
         <Route path="pengaturan" element={<RequireRole roles={["admin"]}><SettingsPage /></RequireRole>} />
         <Route path="*" element={<NotFound />} />
       </Route>

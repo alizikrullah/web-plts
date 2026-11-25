@@ -63,12 +63,17 @@ test("kondisi memuat: Home tidak menampilkan tampilan pengunjung selama sesi mas
   await expectMenu(page, MENU.client)
 })
 
-test("di HP, menu dibuka lewat tombol Menu", async ({ page }) => {
+test("di HP, menu dibuka lewat tombol Menu, sedangkan Masuk dan Daftar selalu terlihat sebagai tombol", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 })
   await page.goto("/")
-  await expect(nav(page).getByRole("link", { name: "Masuk" })).toBeHidden()
+  const akun = page.getByRole("navigation", { name: "Akun" })
+  await expect(akun.getByRole("link", { name: "Masuk" })).toBeVisible()
+  await expect(akun.getByRole("link", { name: "Daftar" })).toHaveClass(/\bpri\b/)
+  await expect(nav(page).getByRole("link", { name: "Simulator" })).toBeHidden()
   await page.getByRole("button", { name: "Menu" }).click()
-  await nav(page).getByRole("link", { name: "Daftar" }).click()
+  await nav(page).getByRole("link", { name: "Simulator" }).click()
+  await expect(page.getByRole("heading", { name: "Simulator PLTS Rumah" })).toBeVisible()
+  await expect(nav(page).getByRole("link", { name: "Simulator" })).toBeHidden()
+  await akun.getByRole("link", { name: "Daftar" }).click()
   await expect(page.getByRole("heading", { name: "Daftar" })).toBeVisible()
-  await expect(nav(page).getByRole("link", { name: "Masuk" })).toBeHidden()
 })

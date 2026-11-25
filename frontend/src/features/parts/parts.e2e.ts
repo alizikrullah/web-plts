@@ -4,7 +4,9 @@ import { adminToken, call, loginUi, newClient, newGuest } from "../../test/e2e"
 test("skenario 6: part dinonaktifkan dari List Part hilang dari pilihan Simulator dan Planning, simulasi lama tetap tampil benar", async ({ page, browser, request }) => {
   await loginUi(page, "admin@e2e.test")
   await page.goto("/list-part")
-  await page.getByRole("button", { name: "Tambah part" }).click()
+  await page.getByRole("link", { name: "Tambah part" }).click()
+  await expect(page).toHaveURL(/\/list-part\/baru$/)
+  await expect(page.locator("table.data")).toHaveCount(0)
   await page.getByLabel("Nama", { exact: true }).fill("Panel Uji 500 Wp")
   await page.getByLabel("Harga satuan").fill("1500000")
   await page.getByLabel("Daya (Wp)").fill("500")
@@ -21,12 +23,21 @@ test("skenario 6: part dinonaktifkan dari List Part hilang dari pilihan Simulato
     usage_pattern: "seimbang", panel_part_id: id("Panel Uji 500 Wp"), panel_qty: 4, inverter_part_id: id("Inverter 3000 W 24 V"),
     battery_part_id: id("LiFePO4 24 V 100 Ah"), battery_qty: 1 } })).simulation
 
-  await page.locator("tr", { hasText: "Panel Uji 500 Wp" }).getByRole("button", { name: "Ubah" }).click()
+  await page.locator("tr", { hasText: "Panel Uji 500 Wp" }).getByRole("link", { name: "Ubah" }).click()
+  await expect(page).toHaveURL(/\/list-part\/[0-9a-f-]{36}\/ubah$/)
+  await expect(page.getByRole("heading", { name: "Ubah Panel Uji 500 Wp" })).toBeVisible()
+  await expect(page.locator("table.data")).toHaveCount(0)
   await page.getByLabel("Aktif (muncul di pilihan Simulator dan Planning)").uncheck()
   await page.getByRole("button", { name: "Simpan" }).click()
+  await expect(page.getByText("Panel Uji 500 Wp tersimpan.")).toBeVisible()
   await expect(page.locator("table.data")).not.toContainText("Panel Uji 500 Wp")
   await page.getByLabel("Status").selectOption("false")
   await expect(page.locator("table.data")).toContainText("Panel Uji 500 Wp")
+  // filter tetap sama setelah membuka halaman ubah lalu batal
+  await page.locator("tr", { hasText: "Panel Uji 500 Wp" }).getByRole("link", { name: "Ubah" }).click()
+  await page.getByRole("button", { name: "Batal" }).click()
+  await expect(page).toHaveURL(/\/list-part\?.*status=false/)
+  await expect(page.getByLabel("Status")).toHaveValue("false")
 
   // Hilang dari pilihan Planning.
   const c = await newClient(request, "Client Enam")
@@ -69,7 +80,7 @@ test("skenario 5: harga part diubah setelah simulasi diajukan, angka di simulasi
 
   await loginUi(page, "admin@e2e.test")
   await page.goto("/list-part")
-  await page.locator("tr", { hasText: "Panel 450 Wp" }).getByRole("button", { name: "Ubah" }).click()
+  await page.locator("tr", { hasText: "Panel 450 Wp" }).getByRole("link", { name: "Ubah" }).click()
   await page.getByLabel("Harga satuan").fill("2000000")
   await page.getByRole("button", { name: "Simpan" }).click()
   await expect(page.locator("tr", { hasText: "Panel 450 Wp" })).toContainText("Rp2.000.000")
@@ -85,7 +96,7 @@ test("skenario 5: harga part diubah setelah simulasi diajukan, angka di simulasi
 test("tahap lanjutan: admin mengisi kelas paket, Isc, dan aturan jumlah aksesoris dari List Part", async ({ page, request }) => {
   await loginUi(page, "admin@e2e.test")
   await page.goto("/list-part")
-  await page.getByRole("button", { name: "Tambah part" }).click()
+  await page.getByRole("link", { name: "Tambah part" }).click()
   await page.getByLabel("Kategori", { exact: true }).selectOption("aksesoris")
   await page.getByLabel("Nama", { exact: true }).fill("Klem Uji")
   await page.getByLabel("Satuan", { exact: true }).fill("pcs")
@@ -96,7 +107,7 @@ test("tahap lanjutan: admin mengisi kelas paket, Isc, dan aturan jumlah aksesori
   await page.getByRole("button", { name: "Simpan" }).click()
   await expect(page.locator("tr", { hasText: "Klem Uji" })).toContainText("Simulator: 2 per panel, on-grid")
 
-  await page.locator("tr", { hasText: "Panel 450 Wp" }).getByRole("button", { name: "Ubah" }).click()
+  await page.locator("tr", { hasText: "Panel 450 Wp" }).getByRole("link", { name: "Ubah" }).click()
   await page.getByLabel("Isc (A)").fill("11.5")
   await page.getByLabel("Kelas paket").selectOption("hemat")
   await page.getByRole("button", { name: "Simpan" }).click()

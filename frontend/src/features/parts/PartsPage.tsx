@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react"
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router"
 import { fmtNum, rp } from "../../../../shared/format"
 import { api } from "../../core/api"
 import { Field, Loading, Message, useAction } from "../../core/ui"
@@ -29,21 +30,26 @@ const SYSTEM: Record<string, string> = { hybrid_offgrid: "hybrid", on_grid: "on-
 const STALE = 30 * 86400e3
 
 // List Part (PRD bagian 11): satu-satunya sumber part dan harga untuk Simulator dan Planning. Part tidak dihapus, hanya dinonaktifkan.
+// Tambah dan ubah part ada di halaman sendiri (/list-part/baru dan /list-part/:id/ubah). Filter disimpan di alamat supaya tetap sama saat kembali.
 export default function PartsPage() {
-  const [category, setCategory] = useState(""), [active, setActive] = useState("true"), [editing, setEditing] = useState<Part | "baru" | null>(null)
+  const [sp, setSp] = useSearchParams(), location = useLocation()
+  const category = sp.get("kategori") ?? "", active = sp.get("status") ?? "true"
+  const filter = (k: string, v: string) => setSp(s => { s.set(k, v); return s }, { replace: true })
   const list = useApi<{ parts: Part[] }>(`/api/admin/parts?category=${category}&active=${active}`)
+  const saved = (location.state as { saved?: string } | null)?.saved
+  const back = { back: location.search }
   return (
     <section className="wrap page">
       <div className="head">
         <h1>List Part</h1>
-        <button type="button" className="btn pri" onClick={() => setEditing("baru")}>Tambah part</button>
+        <Link className="btn pri" to="/list-part/baru" state={back}>Tambah part</Link>
       </div>
-      {editing && <PartForm part={editing === "baru" ? null : editing} onDone={() => { setEditing(null); list.reload() }} />}
+      {saved && <p className="msg ok" role="status">{saved}</p>}
       <div className="card">
         <div className="filters">
-          <label>Kategori <select value={category} onChange={e => setCategory(e.target.value)}><option value="">Semua</option>
+          <label>Kategori <select value={category} onChange={e => filter("kategori", e.target.value)}><option value="">Semua</option>
             {Object.entries(CATEGORY).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
-          <label>Status <select value={active} onChange={e => setActive(e.target.value)}>
+          <label>Status <select value={active} onChange={e => filter("status", e.target.value)}>
             <option value="true">Aktif</option><option value="false">Nonaktif</option><option value="">Semua</option></select></label>
         </div>
         {!list.data ? <Loading /> : (
@@ -58,7 +64,7 @@ export default function PartsPage() {
                 <td className="num">{rp(p.unit_price)}<small>per {p.unit}</small></td>
                 <td className={Date.now() - Date.parse(p.price_updated_at) > STALE ? "bad" : ""}>{dateText(p.price_updated_at)}</td>
                 <td>{p.buy_url ? <a href={p.buy_url} target="_blank" rel="noreferrer">{p.store_name ?? "Link beli"}</a> : p.store_name ?? "-"}</td>
-                <td><button type="button" className="btn sm" onClick={() => setEditing(p)}>Ubah</button></td>
+                <td><Link className="btn sm" to={`/list-part/${p.id}/ubah`} state={back}>Ubah</Link></td>
               </tr>
             ))}</tbody>
           </table></div>
@@ -68,7 +74,23 @@ export default function PartsPage() {
   )
 }
 
-function PartForm({ part, onDone }: { part: Part | null; onDone: () => void }) {
+// Halaman tambah atau ubah part, terpisah dari daftar. Setelah simpan atau batal, kembali ke daftar dengan filter yang sama.
+export function PartFormPage() {
+  const { id } = useParams(), navigate = useNavigate(), location = useLocation()
+  const d = useApi<{ part: Part }>(id ? `/api/admin/parts/${id}` : null)
+  const list = "/list-part" + ((location.state as { back?: string } | null)?.back ?? "")
+  if (id && d.error) return <section className="wrap page narrow"><p className="msg bad" role="alert">{d.error}</p><Link to={list}>Kembali ke List Part</Link></section>
+  if (id && !d.data) return <Loading />
+  const part = d.data?.part ?? null
+  return (
+    <section className="wrap page narrow">
+      <div className="head"><h1>{part ? `Ubah ${part.name}` : "Tambah part"}</h1></div>
+      <PartForm part={part} onDone={saved => navigate(list, saved ? { state: { saved } } : undefined)} />
+    </section>
+  )
+}
+
+function PartForm({ part, onDone }: { part: Part | null; onDone: (saved?: string) => void }) {
   const [category, setCategory] = useState<Category>(part?.category ?? "panel")
   const [systemType, setSystemType] = useState(String(part?.system_type ?? "hybrid_offgrid"))
   const [basis, setBasis] = useState(String(part?.qty_basis ?? ""))
@@ -88,12 +110,11 @@ function PartForm({ part, onDone }: { part: Part | null; onDone: () => void }) {
     act.run(async () => {
       if (part) await api(`/api/admin/parts/${part.id}`, { method: "PATCH", body })
       else await api("/api/admin/parts", { body: { ...body, category } })
-      onDone()
+      onDone(`${String(body.name)} tersimpan.`)
     })
   }
   return (
     <form className="card form" onSubmit={save}>
-      <h2>{part ? `Ubah ${part.name}` : "Tambah part"}</h2>
       <div className="fields">
         <div className="field"><label htmlFor="part-cat">Kategori</label><div className="box">
           <select id="part-cat" value={category} disabled={!!part} onChange={e => setCategory(e.target.value as Category)}>
@@ -131,7 +152,7 @@ function PartForm({ part, onDone }: { part: Part | null; onDone: () => void }) {
       <div className="field"><label htmlFor="part-notes">Catatan</label><textarea id="part-notes" name="notes" rows={2} defaultValue={part?.notes ?? ""} /></div>
       <label className="check"><input type="checkbox" name="is_active" defaultChecked={part?.is_active ?? true} /> Aktif (muncul di pilihan Simulator dan Planning)</label>
       <Message msg={act.msg} />
-      <div className="actions"><button className="btn pri" disabled={act.busy}>Simpan</button><button type="button" className="btn" onClick={onDone}>Batal</button></div>
+      <div className="actions"><button className="btn pri" disabled={act.busy}>Simpan</button><button type="button" className="btn" onClick={() => onDone()}>Batal</button></div>
     </form>
   )
 }

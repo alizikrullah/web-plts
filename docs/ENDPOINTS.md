@@ -43,6 +43,7 @@ Aturan umum:
 | --- | --- | --- | --- |
 | GET | `/api/parts` | Publik | Panel, inverter, dan baterai yang aktif, ditambah aksesoris aktif yang punya aturan jumlah. Hanya nama, kategori, satuan, harga satuan, kelas paket, angka teknis, dan aturan jumlah aksesoris. |
 | GET | `/api/admin/parts` | Admin | Semua part dengan semua kolom, bisa difilter |
+| GET | `/api/admin/parts/:id` | Admin | Satu part dengan semua kolom, untuk halaman ubah part |
 | POST | `/api/admin/parts` | Admin | Tambah part |
 | PATCH | `/api/admin/parts/:id` | Admin | Ubah part, termasuk nonaktifkan. Ubah harga memperbarui tanggal harga. |
 | GET | `/api/settings/public` | Publik | Nomor WhatsApp, area layanan, FAQ, dan nilai bawaan Simulator |
