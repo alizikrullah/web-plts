@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { one, pool } from "../../core/db.js"
-import { client, freshTestDb, startApp, userSession } from "../../test/test-db.js"
+import { client, freshTestDb, startApp, userSession, type Session } from "../../test/test-db.js"
 import { ACCESS_TTL_SEC, verifyToken } from "../../core/tokens.js"
 import { outbox } from "../../core/email.js"
 
@@ -160,9 +160,37 @@ describe("B2 Kelola Akun", () => {
     expect((await call("PATCH", `/api/admin/users/${admin.id}`, { as: admin, body: { is_active: false } })).status).toBe(400)
   })
 
-  it("aturan 18.3: tidak ada endpoint hapus akun", async () => {
-    const admin = await userSession(call, "admin"), c = await userSession(call, "client")
-    expect((await call("DELETE", `/api/admin/users/${c.id}`, { as: admin })).status).toBe(404)
+  it("guest dijadikan admin dan admin diturunkan menjadi guest; client dan akun sendiri tidak bisa (keputusan tim 26 Nov 2026)", async () => {
+    const admin = await userSession(call, "admin"), g = await userSession(call, "guest"), c = await userSession(call, "client")
+    const role = (id: string, r: string, as: Session = admin) => call("POST", `/api/admin/users/${id}/role`, { as, body: { role: r } })
+    const up = await role(g.id, "admin")
+    expect(up.json.user.role).toBe("admin")
+    // role baru terbaca saat token diperbarui, tanpa masuk ulang
+    expect((await call("POST", "/api/auth/refresh", { as: g })).json.user.role).toBe("admin")
+    expect((await call("GET", "/api/admin/users", { as: g })).status).toBe(200)
+    expect((await role(c.id, "admin")).json.code).toBe("ROLE_NOT_ALLOWED")
+    expect((await role(admin.id, "guest")).status).toBe(400)
+    expect((await role(g.id, "client")).status).toBe(400)
+    expect((await role(c.id, "admin", c)).status).toBe(403)
+    // diturunkan: sesi dicabut, jadi akses admin berhenti paling lama saat access token habis
+    expect((await role(g.id, "guest")).json.user.role).toBe("guest")
+    expect((await call("POST", "/api/auth/refresh", { as: { cookie: g.cookie } })).status).toBe(401)
+    expect((await role(g.id, "guest")).json.code).toBe("ROLE_NOT_ALLOWED")
+  })
+
+  it("aturan 18.3: hanya akun tanpa data yang bisa dihapus, emailnya bisa dipakai daftar lagi", async () => {
+    const admin = await userSession(call, "admin"), other = await userSession(call, "admin"), g = await userSession(call, "guest")
+    expect((await call("DELETE", `/api/admin/users/${admin.id}`, { as: admin })).status).toBe(400)
+    expect((await call("DELETE", `/api/admin/users/${g.id}`, { as: g })).status).toBe(403)
+    const del = await call("DELETE", `/api/admin/users/${g.id}`, { as: admin })
+    expect(del.status).toBe(200)
+    expect(await one(pool, "select 1 from users where id = $1", [g.id])).toBeUndefined()
+    expect((await call("DELETE", `/api/admin/users/${g.id}`, { as: admin })).status).toBe(404)
+    expect((await call("POST", "/api/auth/register", { body: { name: "Daftar Lagi", email: g.email, whatsapp: "081200000000", password: "password-baru" } })).status).toBe(201)
+    // admin yang sudah mengubah Pengaturan punya catatan, jadi tidak bisa dihapus
+    await call("PUT", "/api/admin/settings/sun_hours", { as: other, body: { value: 4 } })
+    const kept = await call("DELETE", `/api/admin/users/${other.id}`, { as: admin })
+    expect([kept.status, kept.json.code]).toEqual([409, "HAS_DATA"])
   })
 })
 

@@ -8,7 +8,8 @@ import { useApi } from "../../core/useApi"
 interface User { id: string; name: string; email: string; whatsapp: string; role: string; is_active: boolean; is_verified: boolean; must_change_password: boolean }
 const ROLE: Record<string, string> = { guest: "Guest", client: "Client", admin: "Admin" }
 
-// Kelola Akun di dalam Pengaturan (PRD bagian 4): cari, nonaktifkan atau aktifkan lagi, buat akun admin, dan password sementara.
+// Kelola Akun di dalam Pengaturan (PRD bagian 4): cari, nonaktifkan atau aktifkan lagi, buat akun admin, password sementara,
+// jadikan admin atau guest, dan hapus akun yang belum punya data.
 export default function ManageAccounts() {
   const session = useSession()
   const [q, setQ] = useState(""), [search, setSearch] = useState("")
@@ -18,6 +19,15 @@ export default function ManageAccounts() {
   const me = session.status === "user" ? session.user.id : ""
   const toggle = (u: User) => act.run(async () => { await api(`/api/admin/users/${u.id}`, { method: "PATCH", body: { is_active: !u.is_active } }); d.reload() },
     u.is_active ? `Akun ${u.email} dinonaktifkan. Aksesnya berhenti paling lama 15 menit lagi.` : `Akun ${u.email} aktif lagi.`)
+  // Guest tanpa proyek bisa dijadikan admin, admin bisa diturunkan menjadi guest (keputusan tim 26 Nov 2026).
+  const setRole = (u: User, role: "admin" | "guest") => act.run(async () => { await api(`/api/admin/users/${u.id}/role`, { body: { role } }); d.reload() },
+    role === "admin" ? `${u.email} sekarang admin. Menu admin muncul saat ia masuk lagi atau paling lama 15 menit lagi.`
+      : `${u.email} sekarang guest. Akses adminnya berhenti paling lama 15 menit lagi.`)
+  // Hanya akun tanpa proyek dan tanpa catatan lain yang bisa dihapus (aturan 18.3).
+  const remove = (u: User) => {
+    if (!confirm(`Hapus akun ${u.email}? Akun yang sudah punya proyek atau catatan tidak bisa dihapus, nonaktifkan saja.`)) return
+    act.run(async () => { await api(`/api/admin/users/${u.id}`, { method: "DELETE" }); d.reload() }, `Akun ${u.email} dihapus.`)
+  }
   const temp = (u: User) => act.run(async () => {
     const r = await api<{ temporary_password: string }>(`/api/admin/users/${u.id}/temp-password`, { body: {} })
     setShown({ email: u.email, password: r.temporary_password }); d.reload()
@@ -51,6 +61,9 @@ export default function ManageAccounts() {
                   {u.id !== me && <button type="button" className={u.is_active ? "btn sm danger" : "btn sm"} disabled={act.busy} onClick={() => toggle(u)}>{u.is_active ? "Nonaktifkan" : "Aktifkan"}</button>}
                   <button type="button" className="btn sm" disabled={act.busy} onClick={() => temp(u)}>Password sementara</button>
                   {u.role === "guest" && u.is_active && <Link className="btn sm" to={`/client/baru?client=${u.id}`}>Buat proyek</Link>}
+                  {u.id !== me && u.role === "guest" && <button type="button" className="btn sm" disabled={act.busy} onClick={() => setRole(u, "admin")}>Jadikan admin</button>}
+                  {u.id !== me && u.role === "admin" && <button type="button" className="btn sm" disabled={act.busy} onClick={() => setRole(u, "guest")}>Jadikan guest</button>}
+                  {u.id !== me && <button type="button" className="btn sm danger" disabled={act.busy} onClick={() => remove(u)}>Hapus</button>}
                 </td>
               </tr>
             ))}</tbody>

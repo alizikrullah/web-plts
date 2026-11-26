@@ -130,8 +130,8 @@ describe("B3 List Part", () => {
   })
 })
 
-it("aturan 18.3: users, parts, project_statuses, dan project_sub_statuses tidak bisa dihapus permanen", async () => {
-  for (const t of ["users", "parts", "project_statuses", "project_sub_statuses"])
+it("aturan 18.3: parts, project_statuses, dan project_sub_statuses tidak bisa dihapus permanen", async () => {
+  for (const t of ["parts", "project_statuses", "project_sub_statuses"])
     await expect(pool.query(`delete from ${t} where id = (select id from ${t} limit 1)`), t).rejects.toThrow(/tidak boleh dihapus/)
   // faqs tidak termasuk aturan ini
   await expect(pool.query("delete from faqs")).resolves.toBeTruthy()

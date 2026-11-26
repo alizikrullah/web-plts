@@ -47,11 +47,13 @@ const sentRecently = async (userId: string, purpose: Purpose) =>
 
 async function sendVerification(db: Db, user: { id: string; name: string; email: string }) {
   const token = await emailToken(db, user.id, "verifikasi", "24 hours")
-  await sendMail(mail(user.email, "Verifikasi email akun PLTS Rumah", [
-    `Halo ${user.name},`,
-    "Terima kasih sudah mendaftar. Klik tombol di bawah untuk memverifikasi email Anda. Link berlaku 24 jam.",
-    "Kalau Anda tidak merasa mendaftar, abaikan email ini.",
-  ], { url: appUrl(`/verifikasi-email?token=${token}`), label: "Verifikasi email" }))
+  await sendMail(mail(user.email, "Verifikasi email akun PLTS Rumah", {
+    preheader: "Satu langkah lagi: verifikasi email untuk mulai memakai akun PLTS Rumah.",
+    title: "Verifikasi email Anda", greeting: `Halo ${user.name},`,
+    paragraphs: ["Terima kasih sudah mendaftar di PLTS Rumah. Klik tombol di bawah untuk memverifikasi email Anda, lalu masuk untuk menyimpan simulasi dan mengajukan perhitungan detail."],
+    button: { url: appUrl(`/verifikasi-email?token=${token}`), label: "Verifikasi email" },
+    expires: "Link berlaku 24 jam.", footnote: "Kalau Anda tidak merasa mendaftar, abaikan email ini.",
+  }))
 }
 
 // Register selalu membuat guest. Isian role dari form diabaikan (PRD bagian 2, aturan role 1).
@@ -96,11 +98,13 @@ router.post("/auth/forgot-password", async (req, res) => {
   const user = await one(pool, "select id, name, email from users where email = $1 and is_active", [email])
   if (user && !(await sentRecently(user.id, "reset_password"))) await tx(async c => {
     const token = await emailToken(c, user.id, "reset_password", "1 hour")
-    await sendMail(mail(user.email, "Reset password akun PLTS Rumah", [
-      `Halo ${user.name},`,
-      "Ada permintaan untuk mengganti password akun Anda. Klik tombol di bawah untuk membuat password baru. Link berlaku 1 jam.",
-      "Kalau Anda tidak meminta ini, abaikan email ini. Password lama tetap berlaku.",
-    ], { url: appUrl(`/reset-password?token=${token}`), label: "Buat password baru" }))
+    await sendMail(mail(user.email, "Reset password akun PLTS Rumah", {
+      preheader: "Buat password baru untuk akun PLTS Rumah Anda. Link berlaku 1 jam.",
+      title: "Buat password baru", greeting: `Halo ${user.name},`,
+      paragraphs: ["Ada permintaan untuk mengganti password akun PLTS Rumah Anda. Klik tombol di bawah untuk membuat password baru. Setelah itu, semua perangkat yang masih masuk akan keluar otomatis."],
+      button: { url: appUrl(`/reset-password?token=${token}`), label: "Buat password baru" },
+      expires: "Link berlaku 1 jam dan hanya bisa dipakai sekali.", footnote: "Kalau Anda tidak meminta ini, abaikan email ini. Password lama tetap berlaku.",
+    }))
   })
   res.json({ ok: true })
 })
@@ -214,6 +218,45 @@ router.patch("/admin/users/:id", auth, allow("admin"), async (req, res) => {
     return u
   })
   res.json({ user })
+})
+
+// Ganti role oleh admin (keputusan tim 26 Nov 2026): guest tanpa proyek menjadi admin, admin menjadi guest.
+// Client punya proyek, jadi tidak bisa menjadi admin. Admin tidak bisa mengubah role akunnya sendiri.
+router.post("/admin/users/:id/role", auth, allow("admin"), async (req, res) => {
+  const id = param(req, "id"), role = v.oneOf(req.body ?? {}, "role", ["admin", "guest"] as const)
+  if (id === req.user!.sub) fail(400, "Tidak bisa mengubah role akun sendiri", "INVALID_INPUT")
+  const user = await tx(async c => {
+    const u = (await one<{ role: Role }>(c, "select role from users where id = $1 for update", [id])) ?? fail(404, "Akun tidak ditemukan", "NOT_FOUND")
+    if (role === "admin") {
+      if (u.role !== "guest") fail(409, u.role === "client" ? "Akun client punya proyek, jadi tidak bisa dijadikan admin" : "Akun ini sudah admin", "ROLE_NOT_ALLOWED")
+      if (await one(c, "select 1 from projects where client_id = $1 limit 1", [id]))
+        fail(409, "Akun ini punya pengajuan proyek, jadi tidak bisa dijadikan admin", "ROLE_NOT_ALLOWED")
+    } else if (u.role !== "admin") fail(409, "Hanya admin yang bisa diturunkan menjadi guest", "ROLE_NOT_ALLOWED")
+    const updated = await one(c, `update users set role = $2 where id = $1 returning ${PUBLIC_USER}`, [id, role])
+    if (role === "guest") await revokeAll(c, id) // akses admin berhenti paling lama 15 menit kemudian, seperti nonaktifkan
+    return updated
+  })
+  res.json({ user })
+})
+
+// Hapus akun (aturan 18.3, keputusan tim 26 Nov 2026): hanya akun tanpa proyek dan tanpa catatan lain.
+// Simulasi dan token akun itu ikut terhapus, dan emailnya bisa dipakai daftar lagi.
+router.delete("/admin/users/:id", auth, allow("admin"), async (req, res) => {
+  const id = param(req, "id")
+  if (id === req.user!.sub) fail(400, "Tidak bisa menghapus akun sendiri", "INVALID_INPUT")
+  await tx(async c => {
+    if (!(await one(c, "select 1 from users where id = $1 for update", [id]))) fail(404, "Akun tidak ditemukan", "NOT_FOUND")
+    if (await one(c, "select 1 from projects where client_id = $1 limit 1", [id]))
+      fail(409, "Akun ini punya proyek, jadi tidak bisa dihapus. Nonaktifkan saja.", "HAS_DATA")
+    for (const t of ["simulations", "refresh_tokens", "email_tokens"]) await c.query(`delete from ${t} where user_id = $1`, [id])
+    try { await c.query("delete from users where id = $1", [id]) } catch (e) {
+      // Masih dirujuk data lain, misalnya penanggung jawab proyek, tagihan, pembayaran, atau perubahan Pengaturan.
+      if ((e as { code?: string }).code === "23503")
+        fail(409, "Akun ini sudah punya catatan di data proyek atau Pengaturan, jadi tidak bisa dihapus. Nonaktifkan saja.", "HAS_DATA")
+      throw e
+    }
+  })
+  res.json({ ok: true })
 })
 
 router.post("/admin/users/:id/temp-password", auth, allow("admin"), async (req, res) => {

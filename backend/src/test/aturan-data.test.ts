@@ -39,9 +39,18 @@ describe("PRD bagian 18: aturan data", () => {
     expect(r.items[0].subtotal).toBe(50000) // 3,3333 x 15.000 = 49.999,5 dibulatkan ke atas
   })
 
-  it("3. Tidak ada hapus permanen untuk users, parts, project_statuses, dan project_sub_statuses", async () => {
-    for (const t of ["users", "parts", "project_statuses", "project_sub_statuses"])
+  it("3. Tidak ada hapus permanen untuk parts, project_statuses, dan project_sub_statuses; akun hanya bisa dihapus kalau belum punya data", async () => {
+    for (const t of ["parts", "project_statuses", "project_sub_statuses"])
       await expect(pool.query(`delete from ${t} where id = (select id from ${t} limit 1)`), t).rejects.toThrow(/tidak boleh dihapus/)
+    // akun dengan proyek ditolak, akun yang hanya punya simulasi terhapus beserta simulasinya (keputusan tim 26 Nov 2026)
+    const { session } = await f.submitted()
+    const blocked = await call("DELETE", `/api/admin/users/${(session as any).id}`, { as: admin })
+    expect([blocked.status, blocked.json.code]).toEqual([409, "HAS_DATA"])
+    const g = await userSession(call, "guest")
+    await ok(call("POST", "/api/simulations", { as: g, body: { system_type: "hybrid_offgrid", pln_power_va: 2200, monthly_bill: 1000000, usage_pattern: "seimbang",
+      panel_part_id: ids.panel550, panel_qty: 4, inverter_part_id: ids.inv3000, battery_part_id: ids.bat24, battery_qty: 1 } }))
+    expect((await call("DELETE", `/api/admin/users/${g.id}`, { as: admin })).status).toBe(200)
+    expect(await one(pool, "select count(*)::int n from simulations where user_id = $1", [g.id])).toEqual({ n: 0 })
     expect((await call("DELETE", `/api/admin/parts/${ids.kabel}`, { as: admin })).status).toBe(404)
     expect((await call("PATCH", `/api/admin/parts/${ids.kabel}`, { as: admin, body: { is_active: false } })).json.part.is_active).toBe(false)
     await call("PATCH", `/api/admin/parts/${ids.kabel}`, { as: admin, body: { is_active: true } })

@@ -35,6 +35,8 @@ Aturan umum:
 | GET | `/api/admin/users` | Admin | Daftar akun, bisa dicari |
 | POST | `/api/admin/users` | Admin | Buat akun admin |
 | PATCH | `/api/admin/users/:id` | Admin | Nonaktifkan atau aktifkan lagi. Nonaktif mencabut refresh token. |
+| POST | `/api/admin/users/:id/role` | Admin | Jadikan guest tanpa proyek sebagai admin, atau turunkan admin menjadi guest. Tidak untuk akun sendiri. |
+| DELETE | `/api/admin/users/:id` | Admin | Hapus akun yang belum punya proyek atau catatan lain, beserta simulasinya. Tidak untuk akun sendiri. |
 | POST | `/api/admin/users/:id/temp-password` | Admin | Buat password sementara |
 
 ## B3. List Part dan Pengaturan

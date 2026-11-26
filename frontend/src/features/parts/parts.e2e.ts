@@ -123,4 +123,5 @@ test("tahap lanjutan: admin mengisi kelas paket, Isc, dan aturan jumlah aksesori
   // kembalikan supaya tes lain memakai data awal
   const token = await adminToken(request)
   await call(request, "PATCH", `/api/admin/parts/${parts.find(p => p.name === "Panel 450 Wp")!.id}`, { token, body: { package_tier: null, isc: null } })
+  await call(request, "PATCH", `/api/admin/parts/${parts.find(p => p.name === "Klem Uji")!.id}`, { token, body: { is_active: false } })
 })
