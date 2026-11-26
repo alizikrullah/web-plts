@@ -27,66 +27,12 @@
   },
   {
     "category": "aksesoris",
-    "name": "Shine WiFi-X (monitoring Growatt)",
-    "unit": "unit",
-    "unit_price": 450000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. Cek dulu, sering sudah termasuk inverter."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Kabel PV 4 mm2 H1Z2Z2-K merah + hitam",
-    "unit": "meter",
-    "unit_price": 27000,
-    "qty_basis": "per_string",
-    "qty_per_basis": 30,
-    "notes": "Dari RAB on-grid tim: 30 m per string."
-  },
-  {
-    "category": "aksesoris",
     "name": "Konektor MC4 1000 V DC 30 A",
     "unit": "pasang",
     "unit_price": 30000,
     "qty_basis": "per_string",
     "qty_per_basis": 2,
     "notes": "Dari RAB on-grid tim: 2 pasang per string."
-  },
-  {
-    "category": "aksesoris",
-    "name": "DC isolator 2P 550 V DC 16 A",
-    "unit": "pcs",
-    "unit_price": 200000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
-  },
-  {
-    "category": "aksesoris",
-    "name": "SPD DC 2P 600 V Type II",
-    "unit": "pcs",
-    "unit_price": 150000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
-  },
-  {
-    "category": "aksesoris",
-    "name": "MCB AC 16 A kurva C",
-    "unit": "pcs",
-    "unit_price": 75000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
-  },
-  {
-    "category": "aksesoris",
-    "name": "SPD AC 1P+N 275 V Type II",
-    "unit": "pcs",
-    "unit_price": 150000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
   },
   {
     "category": "aksesoris",
@@ -105,86 +51,5 @@
     "qty_basis": "per_sistem",
     "qty_per_basis": 15,
     "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 15 m per sistem."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Batang arde copper bonded 5/8 x 1,5 m + klem",
-    "unit": "pcs",
-    "unit_price": 150000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Kabel grounding 6 mm2 hijau-kuning",
-    "unit": "meter",
-    "unit_price": 12000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 20,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 20 m per sistem."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Smart meter / CT export limiter",
-    "unit": "unit",
-    "unit_price": 1200000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. Eastron SDM230-Modbus atau CT Growatt."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Kabel RS485 twisted pair shield 2 x 0,75 mm2",
-    "unit": "meter",
-    "unit_price": 8000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 10,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 10 m per sistem."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Rail aluminium PV",
-    "unit": "meter",
-    "unit_price": 60000,
-    "qty_basis": "per_panel",
-    "qty_per_basis": 1.4,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 1,4 m per panel dihitung dari RAB untuk panel 120 Wp (28 m untuk 20 panel); panel yang lebih lebar butuh rail lebih panjang."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Mid clamp",
-    "unit": "pcs",
-    "unit_price": 12000,
-    "qty_basis": "per_panel",
-    "qty_per_basis": 1.8,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 36 untuk 20 panel."
-  },
-  {
-    "category": "aksesoris",
-    "name": "End clamp",
-    "unit": "pcs",
-    "unit_price": 12000,
-    "qty_basis": "per_panel",
-    "qty_per_basis": 0.4,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 8 untuk 20 panel (2 baris)."
-  },
-  {
-    "category": "aksesoris",
-    "name": "L-feet / roof hook",
-    "unit": "pcs",
-    "unit_price": 20000,
-    "qty_basis": "per_panel",
-    "qty_per_basis": 1.2,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui. 24 untuk 20 panel, sesuaikan jenis atap."
-  },
-  {
-    "category": "aksesoris",
-    "name": "Aksesoris pasang (baut SS, sealant, cable tie UV, conduit, saddle)",
-    "unit": "set",
-    "unit_price": 250000,
-    "qty_basis": "per_sistem",
-    "qty_per_basis": 1,
-    "notes": "Harga perkiraan dari RAB on-grid tim, perlu diperbarui."
   }
 ]
